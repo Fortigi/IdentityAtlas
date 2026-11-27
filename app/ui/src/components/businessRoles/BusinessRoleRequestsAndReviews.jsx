@@ -8,13 +8,13 @@
 import AccessPackageGovernance from '@ui/components/AccessPackageGovernance';
 import BusinessRoleCompositionReview from './BusinessRoleCompositionReview';
 
-export default function BusinessRoleRequestsAndReviews({ roleId, data, authFetch, showComposition, showRequests, answersForRole, onOpenDetail }) {
+export default function BusinessRoleRequestsAndReviews({ roleId, data, authFetch, showComposition, showRequests, answersForRole, onOpenDetail, startReview = false }) {
   return (
     <div className="space-y-4">
       {showComposition && (
         <section aria-label="Composition review" className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
           <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Composition review</h3>
-          <BusinessRoleCompositionReview roleId={roleId} data={data} onOpenDetail={onOpenDetail} answersForRole={answersForRole} />
+          <BusinessRoleCompositionReview roleId={roleId} data={data} onOpenDetail={onOpenDetail} answersForRole={answersForRole} startReview={startReview} />
         </section>
       )}
       {showRequests && <AccessPackageGovernance accessPackageId={roleId} authFetch={authFetch} showPolicies={false} />}

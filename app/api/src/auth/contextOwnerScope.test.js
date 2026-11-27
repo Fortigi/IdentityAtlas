@@ -24,9 +24,10 @@ describe('contextOwnerVerdict — the shell', () => {
     expect(get(path)).toBe(ALLOW);
   });
 
-  it('lists exactly the five shell reads', () => {
+  it('lists exactly the shell reads', () => {
     expect([...SHELL_PATHS].sort()).toEqual([
-      '/api/attribute-labels', '/api/auth-me', '/api/context-owner/tree', '/api/features', '/api/preferences', '/api/version',
+      '/api/attribute-labels', '/api/auth-me', '/api/context-owner/tree', '/api/features', '/api/preferences',
+      '/api/review-requests/mine', '/api/version',
     ]);
   });
 

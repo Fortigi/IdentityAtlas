@@ -14,8 +14,13 @@
 // the catalog keeps for those (data.write.certifications) — or being the role's
 // own Accountable or Responsible (lib/businessRoleOwners.js), through any of the
 // caller's accounts, where the relative-permission grid gives that role
-// `review` (Admin → Roles & Permissions, auth/relativePermissions.js). Who saved it comes from the signed-in user
+// `review` (Admin → Roles & Permissions, auth/relativePermissions.js) — or being
+// asked by a review campaign: the role's Accountable while a request for it is
+// open (lib/reviewCampaigns.js). Who saved it comes from the signed-in user
 // (lib/userOf.js), never from the body.
+//
+// GET tells an asked person what they are asked (`request`: the campaign, its
+// steps, when it is due), and a review they save answers that request.
 //
 // The people lookup is open to exactly those who may review this role: a role's
 // owner has no other way to find a colleague (a context owner cannot list users).
@@ -33,6 +38,7 @@ import { getRelativePolicy } from '../../auth/contextOwnerSetting.js';
 import { BUSINESS_ROLE_SUBJECT, rolesAllowing } from '../../auth/relativePermissions.js';
 import { loadCompositionReviews, saveCompositionReview, searchPeople } from '../../lib/businessRoleCompositionReview.js';
 import { parseReviewBody } from '../../lib/compositionReviewSteps.js';
+import { openRequestsFor, answerRequests } from '../../lib/reviewCampaigns.js';
 import { requireRole, failed } from './businessRoleOwners.js';
 
 export const REVIEW_PERMISSION = 'data.write.certifications';
@@ -45,16 +51,28 @@ const holdsPermission = (req) => {
   return !!perms && (perms.has('*') || perms.has(REVIEW_PERMISSION));
 };
 
+// The person behind the request in our own data, looked up once per request.
+// A caller let in as an owner was matched already (contextOwnerMode).
+async function meOf(req) {
+  if (req.reviewer === undefined) req.reviewer = req.user?.contextOwner?.me ?? await resolveMe(req.user);
+  return req.reviewer;
+}
+
+/** The open campaign requests that ask this caller to review the role in req.params.id. */
+export async function askedRequests(req) {
+  if (!isAuthEnabled() || req.readToken || !req.user) return [];
+  return openRequestsFor(await meOf(req), req.params.id);
+}
+
 /** May this caller save a review of the role in req.params.id? */
 export async function mayReview(req) {
   if (!isAuthEnabled()) return true;
   if (req.readToken) return false;
   if (holdsPermission(req)) return true;
   const roles = rolesAllowing(await getRelativePolicy(), BUSINESS_ROLE_SUBJECT, 'review');
-  if (roles.length === 0) return false;
-  // A caller let in as an owner was matched to our data already (contextOwnerMode).
-  const me = req.user?.contextOwner?.me ?? await resolveMe(req.user);
-  return answersForBusinessRole(me, req.params.id, roles);
+  if (roles.length > 0 && await answersForBusinessRole(await meOf(req), req.params.id, roles)) return true;
+  // Asked by a campaign: the request itself is the right to answer it.
+  return (await askedRequests(req)).length > 0;
 }
 
 async function reviewGate(req, res, next) {
@@ -68,8 +86,9 @@ async function reviewGate(req, res, next) {
 
 router.get('/access-package/:id/composition-reviews', feature, requireRole, async (req, res) => {
   try {
-    const [summary, canReview] = await Promise.all([loadCompositionReviews(req.params.id), mayReview(req)]);
-    res.json({ ...summary, canReview });
+    const [summary, canReview, asked] = await Promise.all([loadCompositionReviews(req.params.id), mayReview(req), askedRequests(req)]);
+    // The request due soonest is the one the wizard answers first.
+    res.json({ ...summary, canReview, request: asked[0] ?? null });
   } catch (err) { failed(res, 'Loading the composition reviews', err); }
 });
 
@@ -79,6 +98,7 @@ router.post('/access-package/:id/composition-reviews', reviewGate, feature, requ
   try {
     const saved = await saveCompositionReview(req.params.id, parsed, { by: userOf(req), byName: req.user?.name });
     if (saved.error) return res.status(400).json({ error: saved.error });
+    if (isAuthEnabled() && req.user) await answerRequests(await meOf(req), req.params.id, saved);
     return res.status(201).json(saved);
   } catch (err) { return failed(res, 'Saving the composition review', err); }
 });

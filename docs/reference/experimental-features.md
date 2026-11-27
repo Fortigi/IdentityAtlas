@@ -292,12 +292,12 @@ Environment variable: `FEATURE_COMPOSITION_REVIEW=true`.
 
 ### What the switch does, precisely
 
-**On** — a business role's **Requests & reviews** tab starts with a **Composition review** section. Saving a review takes the
+**On** — a business role's **Requests & reviews** tab starts with a **Composition review** section, and **Admin → Review campaigns** appears for whoever holds the Review campaigns permission (see [Review campaigns](../concepts/governance-model.md#review-campaigns)). Saving a review takes the
 Certification decisions permission, or answering for the role where the relative-permission
 grid ticks **Composition review** for that role (Accountable or Responsible).
 
 **Off** — the tab is hidden and `GET` / `POST /api/access-package/{id}/composition-reviews`
-and `GET …/composition-reviews/people` answer `404`.
+and `GET …/composition-reviews/people` answer `404`, as do `/api/review-campaigns` and `/api/review-requests/mine`. Campaigns already set up are kept and ask nobody while it is off.
 
 ### What the switch does *not* do
 

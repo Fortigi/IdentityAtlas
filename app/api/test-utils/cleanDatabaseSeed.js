@@ -22,7 +22,7 @@ export const IDS = {
   TA_KEEP: id(40), TA_GONE: id(41), TA_UPLOAD: id(42),
   WI_KEEP: id(50), WI_GONE: id(51), RP_KEEP: id(52), RP_GONE: id(53),
   SMF: id(60), MS: id(61), SR: id(62), RV: id(63), BOT: id(64), MEMBER: id(65), OWNER: id(66),
-  RS_KEEP: id(70), RS_GONE: id(71), U1: id(72), REVIEW: id(73),
+  RS_KEEP: id(70), RS_GONE: id(71), U1: id(72), REVIEW: id(73), CAMPAIGN: id(74), ROUND: id(75),
 };
 
 const MARK = 'clean-db-contract';
@@ -170,6 +170,15 @@ export async function seedEverything(q) {
   exp('BusinessRoleCompositionReviews', '"resourceId" = $1', [X.R1], 'removed');
   await q(`INSERT INTO "BusinessRoleCompositionReviewSteps" ("reviewId",step,verdict,remark) VALUES ($1,'contents','needsChange','SG-HR does not belong here')`, [X.REVIEW]);
   exp('BusinessRoleCompositionReviewSteps', '"reviewId" = $1', [X.REVIEW], 'removed');
+  // A campaign and its round stay; what they asked about the removed role goes.
+  await q(`INSERT INTO "ReviewCampaigns" (id,name,steps,"startsOn","dueDays","createdBy") VALUES ($1,'Yearly review','["contents"]'::jsonb,'2026-01-01',30,$2)`, [X.CAMPAIGN, MARK]);
+  exp('ReviewCampaigns', 'id = $1', [X.CAMPAIGN], 'kept');
+  await q(`INSERT INTO "ReviewCampaignRounds" (id,"campaignId",number,"startsAt","dueAt") VALUES ($1,$2,1,'2026-01-01','2026-01-31')`, [X.ROUND, X.CAMPAIGN]);
+  exp('ReviewCampaignRounds', 'id = $1', [X.ROUND], 'kept');
+  await q(`INSERT INTO "ReviewCampaignScopes" ("campaignId","resourceId") VALUES ($1,$2)`, [X.CAMPAIGN, X.R1]);
+  exp('ReviewCampaignScopes', '"campaignId" = $1', [X.CAMPAIGN], 'removed');
+  await q(`INSERT INTO "ReviewCampaignRequests" ("roundId","resourceId","reviewId") VALUES ($1,$2,$3)`, [X.ROUND, X.R1, X.REVIEW]);
+  exp('ReviewCampaignRequests', '"roundId" = $1', [X.ROUND], 'removed');
   await q(`INSERT INTO "ManagerHierarchyOverrides" ("principalId","managerPrincipalId","setBy") VALUES ($1,$2,$3)`, [X.P1, X.P2, MARK]);
   exp('ManagerHierarchyOverrides', '"principalId" = $1', [X.P1], 'removed');
 

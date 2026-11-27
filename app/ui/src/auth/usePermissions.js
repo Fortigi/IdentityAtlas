@@ -60,5 +60,6 @@ export function useCanSeeAdminTab() {
     'admin.csv-import',
     'admin.read-tokens',
     'admin.feature-flags',
+    'admin.review-campaigns',
   );
 }

@@ -43,6 +43,16 @@ export function formatDateOnly(dateStr) {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// A calendar day the server planned in UTC (a campaign round's start or due
+// day), shown as that same day whatever the reader's time zone: a round due at
+// the end of 31 December must not read as 1 January east of Greenwich.
+export function formatUtcDay(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
 export function formatDurationSeconds(seconds) {
   if (seconds == null || isNaN(seconds)) return '—';
   if (seconds < 60) return `${seconds}s`;

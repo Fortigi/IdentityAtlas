@@ -33,6 +33,8 @@ export const SHELL_PATHS = new Set([
   '/api/version',
   '/api/preferences',
   '/api/attribute-labels',
+  // The reviews a campaign asks of the caller: only ever their own.
+  '/api/review-requests/mine',
 ]);
 
 const UUID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';

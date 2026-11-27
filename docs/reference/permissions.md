@@ -56,6 +56,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) — all `404` while risk scoring is switched off |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
+| `admin.review-campaigns` | Review campaigns | Set up campaigns that ask the Accountable of business roles to review them, and follow their progress (`/api/review-campaigns`, **Admin → Review campaigns**; experimental, part of Composition review). Doing a review that a campaign asks of you needs no permission. |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |
 | `admin.feature-flags` | Feature flags | `POST /api/admin/features/toggle` |
 | `admin.auth` | Authentication & roles | `GET/PUT/DELETE /api/admin/roles` — edits this very mapping. A self-lockout guard prevents a save that would strip your own `admin.auth`. |

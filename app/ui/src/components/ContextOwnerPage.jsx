@@ -24,7 +24,9 @@
 // portfolio they sit in, shown light like the units above a tree, or under
 // "Default portfolio" (contextOwner/ownerPortfolios.js). A role opens read-only
 // with its Composition review, where they may sign off
-// (businessRoles/OwnerRolePage.jsx). The page provides the feature flags itself
+// (businessRoles/OwnerRolePage.jsx). When a review campaign asks them to review
+// a role, a notice says so right under the header
+// (contextOwner/ReviewRequestsBanner.jsx). The page provides the feature flags itself
 // — it is not inside App.
 
 import { useCallback, useMemo, useState } from 'react';
@@ -47,6 +49,7 @@ import OwnerTreePane from './contextOwner/OwnerTree';
 import { useOwnerTree, ownerPageTabs, ownerActiveTab, UNITS_TAB } from './contextOwner/useOwnerTree';
 import { PORTFOLIO_TAB, portfolioRoleGroups, firstGroupRole } from './contextOwner/ownerPortfolios';
 import RoleBadge from './contextOwner/RoleBadge';
+import OwnerReviewRequests from './contextOwner/ReviewRequestsBanner';
 import TemplateTabs from './contexts/TemplateTabs';
 import { OWNER_OPENABLE } from './contextOwner/ownerOpenable';
 
@@ -209,6 +212,7 @@ export default function ContextOwnerPage() {
           <ErrorBoundary>
             <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
               <OwnerHeader isDark={isDark} userName={account?.name || account?.username} photo={me?.photo} onSignOut={logout} />
+              <OwnerReviewRequests enabled={features.compositionReview === true} roles={businessRoles} onOpenRole={pickRole}>
               {tabs.length > 0 && <div className="bg-white dark:bg-gray-800"><TemplateTabs tabs={tabs} active={active} onChange={switchTab} /></div>}
               <div className="flex-1 min-h-0 flex">
                 <OwnerNav tree={tree} contexts={contexts} selectedId={selectedId} onSelect={selectContext}
@@ -216,6 +220,7 @@ export default function ContextOwnerPage() {
                 <OwnerMain current={current} backLabel={backLabel} onBack={back} onOpenDetail={openDetail}
                   roleId={role?.id ?? null} selectedId={selectedId} treeBeside={tree.ready || tree.pending} />
               </div>
+              </OwnerReviewRequests>
             </div>
           </ErrorBoundary>
         </OwnedBusinessRolesContext.Provider>

@@ -76,9 +76,9 @@ function api({ summary = SUMMARY, postError = null, failGet = false } = {}) {
 // Who may review is the API's answer (canReview), not a permission the page checks.
 const AUTH = { hasWildcard: false, permissions: new Set(['data.read']) };
 
-function mount({ shared = false, ...opts } = {}) {
+function mount({ shared = false, startReview = false, ...opts } = {}) {
   const { authFetch, state } = api(opts);
-  const el = h(BusinessRoleCompositionReview, { roleId: 'br-1', data: ROLE_DATA });
+  const el = h(BusinessRoleCompositionReview, { roleId: 'br-1', data: ROLE_DATA, startReview });
   renderWithProviders(shared ? h(SharedViewContext.Provider, { value: true }, el) : el, { auth: { authFetch, ...AUTH } });
   return { state, user: userEvent.setup() };
 }
@@ -347,5 +347,49 @@ describe('the review wizard', () => {
     await user.click(next(wizard));
     await user.click(within(wizard).getByRole('button', { name: 'Sign and finish the review' }));
     await waitFor(() => expect(state.posts).toEqual([{ steps: [{ step: 'contents', verdict: 'good', remark: '' }], notes: '' }]));
+  });
+});
+
+describe('a review a campaign asks for', () => {
+  const REQUEST = { id: 'q-1', campaignName: 'Yearly role review', steps: ['contents'], dueAt: '2030-12-31T23:59:59Z', overdue: false };
+
+  it('says which campaign asks, and reviews only the steps it asks', async () => {
+    const { state, user } = mount({ summary: { ...SUMMARY, request: REQUEST } });
+    expect(await screen.findByTestId('review-request')).toHaveTextContent('The campaign "Yearly role review" asks you to review this role by');
+    const wizard = await start(user);
+    expect(within(wizard).queryByRole('region', { name: 'Who answers for this role now' })).toBeNull();
+    await choose(user, wizard, GOOD);
+    await user.click(next(wizard));
+    await user.click(within(wizard).getByRole('button', { name: 'Sign and finish the review' }));
+    await waitFor(() => expect(state.posts).toEqual([{ steps: [{ step: 'contents', verdict: 'good', remark: '' }], notes: '' }]));
+  });
+
+  it('reviews every step when the request names none, and for someone nobody asks', async () => {
+    const { user } = mount({ summary: { ...SUMMARY, request: { ...REQUEST, steps: [] } } });
+    const wizard = await start(user);
+    expect(within(wizard).getByRole('region', { name: 'Who answers for this role now' })).toBeInTheDocument();
+  });
+
+  it('does not show the request to someone who may not review, or in a shared view', async () => {
+    mount({ summary: { ...SUMMARY, request: REQUEST, canReview: false } });
+    await screen.findByTestId('review-status');
+    expect(screen.queryByTestId('review-request')).toBeNull();
+  });
+
+  it('has no request line while nobody asks', async () => {
+    mount();
+    await screen.findByTestId('review-status');
+    expect(screen.queryByTestId('review-request')).toBeNull();
+  });
+
+  it('opens straight on the wizard when the page asks it to, and not for someone who may not review', async () => {
+    mount({ startReview: true, summary: { ...SUMMARY, request: REQUEST } });
+    expect(await screen.findByTestId('review-wizard')).toBeInTheDocument();
+  });
+
+  it('stays on the status for someone who may not review, even when asked to open the wizard', async () => {
+    mount({ startReview: true, summary: { ...SUMMARY, canReview: false } });
+    expect(await screen.findByTestId('review-status')).toBeInTheDocument();
+    expect(screen.queryByTestId('review-wizard')).toBeNull();
   });
 });

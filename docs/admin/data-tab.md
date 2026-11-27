@@ -121,6 +121,7 @@ data it hangs on:
 - Accountable and Responsible people on contexts, including the ones you set, and rejected suggestions — every holder is an account or an identity, and those are removed.
 - Accountable and Responsible people on business roles, including the ones you set, and rejected suggestions — the business roles and their holders are removed.
 - Composition reviews of business roles, with their verdicts, remarks and notes — the business roles are removed.
+- What review campaigns asked: their scope and the requests of their rounds. The campaigns themselves stay, with an empty scope — the business roles and role portfolios are removed.
 - Your confirm, reject and move decisions on identity accounts, and analyst verification and notes on identities — the identities they belong to are removed.
 - Members and links you added to a synced or generated context — that context is removed.
 - Interviews, claims, decisions and workbench investigations (with their role proposals) on a synced or generated context — that context is removed.

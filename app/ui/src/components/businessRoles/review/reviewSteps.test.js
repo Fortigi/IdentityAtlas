@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   STEP_INFO, VERDICT_INFO, HOLDERS_LOST_DAYS,
   stepLabel, verdictLabel, personKey, ownersOf, sameOwners, ownerChanges, emptyAnswers, stepProblem, buildBody,
-  findingsCount, outcomeText, splitHolders,
+  findingsCount, outcomeText, splitHolders, requestLine,
 } from './reviewSteps';
+import { formatUtcDay } from '@ui/utils/formatters';
 
 const ANN = { principalId: 'p-ann', displayName: 'Ann' };
 const BOB = { principalId: 'p-bob', displayName: 'Bob' };
@@ -209,5 +210,17 @@ describe('splitHolders', () => {
     expect(splitHolders(rows, NOW).lost.map(r => r.principalId)).toEqual(['edge']);
     expect(splitHolders(rows, NOW).current).toEqual([]);
     expect(splitHolders(rows, NOW, 200).lost.map(r => r.principalId)).toEqual(['edge', 'old']);
+  });
+});
+
+describe('requestLine', () => {
+  const request = { campaignName: 'Yearly role review', dueAt: '2026-12-31T23:59:59Z', overdue: false };
+
+  it('says which campaign asks and by which day, as the campaign planned it', () => {
+    expect(requestLine(request)).toBe(`The campaign "Yearly role review" asks you to review this role by ${formatUtcDay('2026-12-31T12:00:00Z')}.`);
+  });
+
+  it('says the date has passed for a late one', () => {
+    expect(requestLine({ ...request, overdue: true })).toBe(`The campaign "Yearly role review" asked you to review this role by ${formatUtcDay('2026-12-31T12:00:00Z')}. That date has passed.`);
   });
 });

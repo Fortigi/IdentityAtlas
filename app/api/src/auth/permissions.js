@@ -48,6 +48,8 @@ export const PERMISSIONS = Object.freeze({
     description: 'Run and configure context-algorithm plugins (clustering, manager-hierarchy, etc.).' },
   'admin.csv-import':          { label: 'CSV import',              group: 'Admin',
     description: 'Upload CSV files and run custom-connector ingest jobs.' },
+  'admin.review-campaigns':    { label: 'Review campaigns',        group: 'Admin',
+    description: 'Set up campaigns that ask the Accountable of business roles to review them, and follow their progress (experimental, part of Composition review).' },
   'admin.read-tokens':         { label: 'Manage read API keys',    group: 'Admin',
     description: 'List and revoke existing fgr_ read tokens that other people minted.' },
   'admin.feature-flags':       { label: 'Feature flags',           group: 'Admin',

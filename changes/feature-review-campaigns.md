@@ -1,0 +1,6 @@
+- Review campaigns (experimental, part of Composition review): under Admin → Review campaigns you ask the Accountable of business roles to review them
+- Choose which steps to review (who answers for the role, its lifecycle, its permissions), which business roles (whole role portfolios, roles one by one, or both) and when: once, or every month, quarter, half year or year, with a number of days to do the review
+- A business role with nobody Accountable falls outside the campaign: the form says how many there are, and the campaign lists them apart
+- Whoever is asked sees a notice right after signing in, with the date and a button per role; the role is marked under Role portfolios and its page starts the review, which asks only the steps the campaign asks
+- A campaign shows per role whether the review is waiting, late, done without findings or done with findings; you can end or delete a campaign, the reviews stay
+- New permission "Review campaigns" for setting up campaigns; doing a review a campaign asks of you needs no permission

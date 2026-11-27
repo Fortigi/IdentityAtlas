@@ -173,7 +173,7 @@ function CompositionReviewCard({ features }) {
       lifecycle and its permissions, each review kept with who signed it, when, and a snapshot of the role at that
       moment, so a later reader sees what was reviewed, what was found and what changed since. Reviewing takes the permission to record
       certification decisions, or answering for the role while that relative permission is on (Admin → Roles &amp;
-      Permissions). Turning this off hides the tab; reviews already saved are kept.
+      Permissions). It also adds <B>Admin → Review campaigns</B>: ask the Accountable of the business roles you choose to review them, once or on a schedule; they see it when they sign in. Turning this off hides both; reviews and campaigns already saved are kept.
     </FlagCard>
   );
 }

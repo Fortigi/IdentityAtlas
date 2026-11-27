@@ -116,6 +116,7 @@
     "117_catalogs_as_contexts.sql": "861a0ebffeda0e8c5ed07606b5dfd7136b2d8abf521e991cc3afa2228ce3097e",
     "118_identity_manager_source.sql": "60709c9f7fc0e995e448b515802c33232f09f46570eb8405e19ab96ad7a5f883",
     "119_identities_system_id.sql": "b14a8cd84c9a376e5eee7967567874d24b2cf7b5e40e594bc7fc284da7c24eda",
-    "120_composition_review_steps.sql": "201109ae41b0ca255e126ff8b5e5dc2d3dbfcd6d8dd10c0f24198e26b4689571"
+    "120_composition_review_steps.sql": "201109ae41b0ca255e126ff8b5e5dc2d3dbfcd6d8dd10c0f24198e26b4689571",
+    "121_review_campaigns.sql": "41137dce68358a06961cd9f4eedb31e95bdc5993f8e788ac6006c5587b6f9c74"
   }
 }

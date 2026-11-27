@@ -24,10 +24,16 @@ vi.mock('../../lib/businessRoleOwners.js', async (orig) => ({
   ...(await orig()),
   answersForBusinessRole: vi.fn(async (me, roleId, roles) => { world.asked.push([me, roleId]); world.roles = roles; return world.owns; }),
 }));
+// What review campaigns ask of the caller for this role, and what a saved review answered.
+const campaigns = vi.hoisted(() => ({ open: [], lookedUp: [], answered: [] }));
+vi.mock('../../lib/reviewCampaigns.js', () => ({
+  openRequestsFor: async (me, roleId) => { campaigns.lookedUp.push([me, roleId]); return campaigns.open; },
+  answerRequests: async (me, roleId, review) => { campaigns.answered.push([me, roleId, review.id]); return campaigns.open.length; },
+}));
 const pictures = vi.hoisted(() => ({ now: null }));
 vi.mock('../../lib/businessRoleSnapshot.js', async (orig) => ({ ...(await orig()), takeSnapshot: vi.fn(async () => pictures.now) }));
 
-const { default: router, mayReview } = await import('./businessRoleCompositionReview.js');
+const { default: router, mayReview, askedRequests } = await import('./businessRoleCompositionReview.js');
 const caller = vi.hoisted(() => ({ user: null }));
 const app = mountRouterAs(router, () => caller.user);
 
@@ -48,7 +54,11 @@ beforeEach(() => {
   Object.assign(world, { auth: true, feature: true, ownerReview: false, policy: null, owns: false, me: null, asked: [], roles: null });
   caller.user = SIGNER;
   pictures.now = picture([FIN]);
+  Object.assign(campaigns, { open: [], lookedUp: [], answered: [] });
 });
+
+const ME = { principal: { id: 'p-1' }, identity: null };
+const REQUEST = { id: 'q-1', roleId: ROLE, campaignName: 'Yearly role review', steps: ['contents'], dueAt: '2026-12-31T23:59:59Z', overdue: false };
 
 describe('mayReview', () => {
   const as = (user, readToken = false) => ({ user, readToken, params: { id: ROLE } });
@@ -100,6 +110,37 @@ describe('mayReview', () => {
     expect(world.me).toBeNull();
   });
 
+  it('lets in whoever a review campaign asks, also while the grid gives nobody review', async () => {
+    expect(await mayReview(as(READER))).toBe(false);
+    expect(campaigns.lookedUp).toEqual([[ME, ROLE]]);
+    campaigns.open = [REQUEST];
+    expect(await mayReview(as(READER))).toBe(true);
+    // Ownership was never asked: the grid gives no role review.
+    expect(world.asked).toEqual([]);
+  });
+
+  it('does not ask the campaigns for someone the grid already lets in, and looks the person up once', async () => {
+    Object.assign(world, { ownerReview: true, owns: true });
+    const req = as(READER);
+    expect(await mayReview(req)).toBe(true);
+    expect(campaigns.lookedUp).toEqual([]);
+    world.me = null;
+    await askedRequests(req);
+    expect(world.me).toBeNull();
+    expect(campaigns.lookedUp).toEqual([[ME, ROLE]]);
+  });
+
+  it('finds no campaign request for a read API key, for nobody, or while sign-in is off', async () => {
+    campaigns.open = [REQUEST];
+    expect(await askedRequests(as(READER, true))).toEqual([]);
+    expect(await askedRequests(as(undefined))).toEqual([]);
+    world.auth = false;
+    expect(await askedRequests(as(READER))).toEqual([]);
+    expect(campaigns.lookedUp).toEqual([]);
+    world.auth = true;
+    expect(await askedRequests(as(READER))).toEqual([REQUEST]);
+  });
+
   it('looks an owner up also when the caller carries no permissions at all', async () => {
     Object.assign(world, { ownerReview: true, owns: true });
     expect(await mayReview(as({ email: 'x@example.test' }))).toBe(true);
@@ -135,7 +176,19 @@ describe('reading', () => {
     roleExists();
     caller.user = READER;
     query.mockResolvedValue({ rows: [] });
-    expect((await request(app).get(url)).body.canReview).toBe(false);
+    const res = await request(app).get(url);
+    expect(res.body.canReview).toBe(false);
+    expect(res.body.request).toBeNull();
+  });
+
+  it('tells someone a campaign asks what they are asked, soonest due first, and that they may review', async () => {
+    roleExists();
+    caller.user = READER;
+    campaigns.open = [REQUEST, { ...REQUEST, id: 'q-2', campaignName: 'Later' }];
+    query.mockResolvedValue({ rows: [] });
+    const res = await request(app).get(url);
+    expect(res.body.canReview).toBe(true);
+    expect(res.body.request).toEqual(REQUEST);
   });
 
   it('500 when the reviews cannot be read', async () => {
@@ -179,6 +232,21 @@ describe('saving', () => {
     expect(written()[0][1].slice(2, 4)).toEqual(['carla@example.test', 'Carla Cash']);
   });
 
+  it('answers the campaign requests of the reviewer with the saved review', async () => {
+    roleExists();
+    caller.user = READER;
+    campaigns.open = [REQUEST];
+    query.mockResolvedValue({ rows: [{ id: 'new' }] });
+    expect((await request(app).post(url).send(GOOD)).status).toBe(201);
+    expect(campaigns.answered).toEqual([[ME, ROLE, 'new']]);
+  });
+
+  it('answers no campaign request when the review was refused', async () => {
+    roleExists();
+    await request(app).post(url).send({ steps: [{ step: 'contents', verdict: 'needsChange' }] });
+    expect(campaigns.answered).toEqual([]);
+  });
+
   it('stores "unknown" when the request carries no user (auth off)', async () => {
     roleExists();
     world.auth = false;
@@ -186,6 +254,8 @@ describe('saving', () => {
     query.mockResolvedValue({ rows: [{ id: 'new' }] });
     await request(app).post(url).send(GOOD);
     expect(written()[0][1].slice(2, 4)).toEqual(['unknown', null]);
+    // Nobody in particular reviewed, so no campaign request is answered.
+    expect(campaigns.answered).toEqual([]);
   });
 
   it('400 for a review without steps, before touching the database', async () => {

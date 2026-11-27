@@ -15,6 +15,7 @@ const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
 const UpdatesSettings = lazy(() => import('./UpdatesSettings'));
 const SharedMatricesPage = lazy(() => import('./SharedMatricesPage'));
+const ReviewCampaignsTab = lazy(() => import('./admin/ReviewCampaignsTab'));
 // Lazy because it pulls the crawler-metadata glob that no other admin tab needs.
 const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
@@ -130,6 +131,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
     roles: RolesPermissionsTab,
     updates: UpdatesSettings,
     shares: SharedMatricesPage,
+    'review-campaigns': ReviewCampaignsTab,
     experimental: ExperimentalFeaturesSection,
     about: AboutPage,
   };

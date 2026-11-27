@@ -66,6 +66,7 @@ const UNDOCUMENTED_FILES = new Set([
   'preferences.js',
   'recentChanges.js',
   'resources.js',
+  'reviewCampaigns.js',
   'riskProfiles.js',
   'riskScores.js',
   'riskScoringRuns.js',
