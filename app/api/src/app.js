@@ -452,8 +452,8 @@ export function createApp() {
   app.use('/api', authMiddleware, bulkListsRouter);
   // Auto-update status/intent/log + the admin toggle (admin.systems gated writes)
   app.use('/api', authMiddleware, updatesRouter);
-  // Review campaigns (experimental, compositionReview flag). Managing is gated
-  // per-route on admin.review-campaigns; what the caller is asked is their own.
+  // Review campaigns (experimental, compositionReview flag; the Reviews tab).
+  // Managing is gated per-route on data.write.review-campaigns; what the caller is asked is their own.
   app.use('/api', authMiddleware, reviewCampaignsRouter);
   // Read API token CRUD + Excel workbook download (admin-scoped). Per-handler
   // gates in the router separate "create your own token" (data.export.apikey)

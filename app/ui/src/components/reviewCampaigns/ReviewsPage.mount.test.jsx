@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
-import ReviewCampaignsTab from './ReviewCampaignsTab';
+import ReviewsPage from './ReviewsPage';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, within, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const ID = 'c1';
@@ -50,7 +50,7 @@ function mount({ campaigns = [CAMPAIGN, PLANNED], askedCanOpen = true, detail = 
     if (u.startsWith('/api/review-campaigns/')) return failDetail ? jsonResponse({ error: 'down' }, { ok: false, status: 500 }) : state.detail;
     return undefined;
   });
-  renderWithProviders(h(ReviewCampaignsTab), { auth: { authFetch } });
+  renderWithProviders(h(ReviewsPage), { auth: { authFetch } });
   return { calls, user: userEvent.setup() };
 }
 
@@ -58,6 +58,15 @@ const openDetail = async (user) => {
   await user.click(await screen.findByRole('button', { name: 'Yearly finance review' }));
   return screen.findByTestId('campaign-detail');
 };
+
+describe('the Reviews page', () => {
+  it('is a page of its own, with its campaigns under it', async () => {
+    mount();
+    expect(screen.getByRole('heading', { level: 2, name: 'Reviews' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: 'Review campaigns' })).toBeInTheDocument();
+    expect(await screen.findByTestId('review-campaigns')).toBeInTheDocument();
+  });
+});
 
 describe('the list of campaigns', () => {
   it('shows each campaign with what it asks, how often, its round and how it stands', async () => {

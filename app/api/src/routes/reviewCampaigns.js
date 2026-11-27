@@ -11,7 +11,7 @@
 //   GET    /api/review-requests/mine             the reviews the caller is asked to do
 //
 // Experimental: all of it sits behind the compositionReview flag and answers 404
-// while that is off. Managing campaigns takes admin.review-campaigns; the gate
+// while that is off. Managing campaigns takes data.write.review-campaigns; the gate
 // runs before the flag, so a caller without it is refused 403 either way. What
 // the caller is asked is open to anyone signed in — it only ever lists their own.
 
@@ -28,7 +28,7 @@ import {
   scopeOptions, openRequestsFor,
 } from '../lib/reviewCampaigns.js';
 
-export const CAMPAIGN_PERMISSION = 'admin.review-campaigns';
+export const CAMPAIGN_PERMISSION = 'data.write.review-campaigns';
 
 const router = Router();
 const manage = requirePermission(CAMPAIGN_PERMISSION);

@@ -53,7 +53,7 @@ describe('adminTabs', () => {
   });
 
   it('a wildcard user sees every tab once the flags they depend on are on', () => {
-    const tabs = visibleAdminTabs(new Set(), true, ADMIN_TABS, { matrixSharing: true, riskScoring: true, compositionReview: true });
+    const tabs = visibleAdminTabs(new Set(), true, ADMIN_TABS, { matrixSharing: true, riskScoring: true });
     expect(tabs).toHaveLength(ADMIN_TABS.length);
   });
 
@@ -161,19 +161,8 @@ describe('leaveTarget', () => {
   });
 });
 
-describe('the review campaigns tab', () => {
-  const keys = (perms, features) => visibleAdminTabs(new Set(perms), false, ADMIN_TABS, features).map(t => t.key);
-
-  it('exists only with its permission while Composition review is on', () => {
-    expect(keys(['admin.review-campaigns'], { compositionReview: true })).toContain('review-campaigns');
-    expect(keys(['admin.review-campaigns'], { compositionReview: false })).not.toContain('review-campaigns');
-    expect(keys(['admin.review-campaigns'], {})).not.toContain('review-campaigns');
-    expect(keys(['admin.feature-flags', 'data.write.certifications'], { compositionReview: true })).not.toContain('review-campaigns');
-  });
-
-  it('sends someone who lands on it while the feature is off to Experimental, where its switch is', () => {
-    const visible = visibleAdminTabs(new Set(), true, ADMIN_TABS, { compositionReview: false });
-    expect(shouldLeaveTab('review-campaigns', visible, { compositionReview: false })).toBe(true);
-    expect(leaveTarget('review-campaigns', visible)).toBe('experimental');
+describe('review campaigns', () => {
+  it('are not an Admin sub-tab: they have a top-level Reviews tab', () => {
+    expect(ADMIN_TABS.map(t => t.key)).not.toContain('review-campaigns');
   });
 });

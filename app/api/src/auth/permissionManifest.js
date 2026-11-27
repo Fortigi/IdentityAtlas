@@ -45,7 +45,7 @@ export const GATED_ENDPOINTS = {
   'admin.context-plugins': { method: 'GET',  path: '/api/context-plugins' },
   'admin.csv-import':      { method: 'GET',  path: '/api/admin/crawler-configs/1/files' },
   'admin.read-tokens':     { method: 'GET',  path: '/api/admin/read-tokens' },
-  'admin.review-campaigns': { method: 'GET', path: '/api/review-campaigns' },
+  'data.write.review-campaigns': { method: 'GET', path: '/api/review-campaigns' },
   'admin.feature-flags':   { method: 'POST', path: '/api/admin/features/toggle', body: { key: 'RISK_SCORING', enabled: false } },
   'admin.auth':            { method: 'GET',  path: '/api/admin/roles' },
   // The MCP endpoint lives outside /api and checks the token itself

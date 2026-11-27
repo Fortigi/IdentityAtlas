@@ -32,6 +32,7 @@ const ContextsPage = lazy(() => import('./components/ContextsPage'));
 const IdentitiesPage = lazy(() => import('./components/IdentitiesPage'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const ReportsPage = lazy(() => import('./components/ReportsPage'));
+const ReviewsPage = lazy(() => import('./components/reviewCampaigns/ReviewsPage'));
 
 // Each entry is a small component that takes the shared render context as PROPS
 // and renders its page; multi-key routes (resources/groups; performance/crawlers/
@@ -51,6 +52,11 @@ const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh, features, ver
 const RiskScoresRoute = ({ openDetailTab, riskScoresRefreshKey, features }) => (features?.riskScoring === true
   ? <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />
   : <p className="max-w-6xl mx-auto px-2 text-sm text-gray-600 dark:text-gray-400">Risk scoring is not switched on for this installation.</p>);
+
+// Reviews is experimental too (Composition review): the same notice while it is off.
+const ReviewsRoute = ({ features }) => (features?.compositionReview === true
+  ? <ReviewsPage />
+  : <p className="max-w-6xl mx-auto px-2 text-sm text-gray-600 dark:text-gray-400">Reviews are not switched on for this installation.</p>);
 
 // pageKey → component. Two things make dispatch on the user-controlled hash key
 // provably safe (CodeQL js/unvalidated-dynamic-method-call):
@@ -73,6 +79,7 @@ export const PAGE_ROUTES = new Map([
   ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
   ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
   ['reports',         ({ openDetailTab }) => <ReportsPage onOpenDetail={openDetailTab} />],
+  ['reviews',         ReviewsRoute],
   ['shared-matrices', AdminRoute],
   ['performance',     AdminRoute],
   ['crawlers',        AdminRoute],

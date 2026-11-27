@@ -285,7 +285,7 @@ On each step you choose **Good**, **Needs a change** or **I do not understand wh
 
 ### Review campaigns
 
-A **review campaign** asks people to do that composition review, instead of waiting for them to think of it. You set one up under **Admin → Review campaigns** (permission **Review campaigns**, `admin.review-campaigns`; experimental, part of Composition review):
+A **review campaign** asks people to do that composition review, instead of waiting for them to think of it. You set one up on the top-level **Reviews** tab (permission **Review campaigns**, `data.write.review-campaigns`; experimental, part of Composition review — the tab shows only while that is on, and only to whoever holds the permission):
 
 - **What to review** — any of the three steps: who answers for the role, its lifecycle, its permissions. The wizard then shows only those.
 - **Which business roles** — whole **role portfolios**, business roles one by one, or both. A portfolio is read again when each round starts, so a role added to it joins the next round.

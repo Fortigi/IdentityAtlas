@@ -24,7 +24,6 @@ export default defineConfig({
       'src/components/businessRoles/*.test.{js,jsx}',
       'src/components/businessRoles/review/*.test.{js,jsx}',
       'src/components/reviewCampaigns/*.test.{js,jsx}',
-      'src/components/admin/ReviewCampaignsTab.mount.test.jsx',
       'src/components/ContextOwnerPage.reviewRequests.mount.test.jsx',
       'src/components/contextOwner/ownerPortfolios.test.js',
     ],

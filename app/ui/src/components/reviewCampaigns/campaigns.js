@@ -1,5 +1,5 @@
 // ─── Review campaigns: the words and the sums ────────────────────────────
-// Pure helpers for the campaign screens (Admin → Review campaigns) and for the
+// Pure helpers for the campaign screens (the Reviews tab) and for the
 // notice an asked person gets. The data is /api/review-campaigns and
 // /api/review-requests/mine (lib/reviewCampaigns.js).
 

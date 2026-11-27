@@ -7,11 +7,12 @@ import CampaignForm from '@ui/components/reviewCampaigns/CampaignForm';
 import CampaignDetail from '@ui/components/reviewCampaigns/CampaignDetail';
 import { CAMPAIGN_STATUS, progressText, repeatText, scopeText } from '@ui/components/reviewCampaigns/campaigns';
 
-// ─── Admin → Review campaigns ────────────────────────────────────────────
-// Campaigns that ask the Accountable of business roles to do a composition
-// review: the list with how each stands, a form for a new one, and one campaign
-// with its roles. Experimental: the tab exists only while Composition review is
-// on (admin/adminTabs.js). Data: /api/review-campaigns.
+// ─── Reviews ─────────────────────────────────────────────────────────────
+// The top-level Reviews tab: review campaigns that ask the Accountable of
+// business roles to do a composition review — the list with how each stands, a
+// form for a new one, and one campaign with its roles. Experimental: the tab
+// exists only while Composition review is on and for whoever may manage
+// campaigns (utils/navTabs.js). Data: /api/review-campaigns.
 
 const MUTED = 'text-xs text-gray-600 dark:text-gray-400';
 
@@ -64,7 +65,7 @@ function List({ campaigns, onOpen }) {
   );
 }
 
-export default function ReviewCampaignsTab() {
+function Campaigns() {
   const { authFetch } = useAuth();
   const { data, loading, error, reload } = useFetch('/api/review-campaigns', { authFetch });
   // 'list', 'new', or the id of the campaign that is open.
@@ -80,12 +81,24 @@ export default function ReviewCampaignsTab() {
   return (
     <div className="space-y-4" data-testid="review-campaigns">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-sm text-gray-700 dark:text-gray-300">
+        <p className="max-w-2xl text-sm text-gray-600 dark:text-gray-400">
           A campaign asks the Accountable of business roles to review them, once or on a schedule. They see it when they sign in; nothing is sent.
         </p>
         <button type="button" onClick={() => setView('new')} className="rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800">New campaign</button>
       </div>
       <List campaigns={campaigns} onOpen={setView} />
+    </div>
+  );
+}
+
+export default function ReviewsPage() {
+  return (
+    <div className="mx-auto max-w-6xl space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Reviews</h2>
+        <h3 className="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Review campaigns</h3>
+      </div>
+      <Campaigns />
     </div>
   );
 }

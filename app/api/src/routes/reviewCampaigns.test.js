@@ -25,7 +25,7 @@ const app = mountRouterAs(router, (req) => { if (caller.readToken) req.readToken
 
 const ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ROLE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const MANAGER = { email: 'ann@example.test', name: 'Ann', permissions: new Set(['admin.review-campaigns']) };
+const MANAGER = { email: 'ann@example.test', name: 'Ann', permissions: new Set(['data.write.review-campaigns']) };
 const READER = { email: 'carla@example.test', name: 'Carla', permissions: new Set(['data.read']) };
 const BODY = { name: 'Yearly role review', steps: ['contents'], roleIds: [ROLE], startsOn: '2026-12-01', intervalMonths: null, dueDays: 30 };
 
@@ -43,7 +43,7 @@ describe('who may manage campaigns', () => {
   ];
 
   it('names the permission it gates on', () => {
-    expect(CAMPAIGN_PERMISSION).toBe('admin.review-campaigns');
+    expect(CAMPAIGN_PERMISSION).toBe('data.write.review-campaigns');
   });
 
   it.each(calls)('refuses %s %s without the permission, before the flag is looked at', async (method, url) => {
