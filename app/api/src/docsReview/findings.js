@@ -5,7 +5,7 @@
 // trusts what passes validateReport(): a malformed or padded file is rejected
 // as a whole, so a confused review cannot file issues with arbitrary content.
 
-import { FINGERPRINT } from '../securityReview/findings.js';
+import { FINGERPRINT, duplicateProblems, textProblems } from '../securityReview/reportFile.js';
 
 // In the order they are numbered and filed: a page that is wrong misleads, a
 // stale one is out of date, a missing one leaves the reader without an answer.
@@ -45,12 +45,7 @@ const TEXT_FIELDS = [
 function findingProblems(f, i) {
   const where = `findings[${i}]`;
   if (!f || typeof f !== 'object') return [`${where} is not an object`];
-  const problems = [];
-  for (const [field, max] of TEXT_FIELDS) {
-    const v = f[field];
-    if (typeof v !== 'string' || v.trim() === '') problems.push(`${where}: ${field} is required`);
-    else if (v.length > max) problems.push(`${where}: ${field} is longer than ${max} characters`);
-  }
+  const problems = textProblems(f, where, TEXT_FIELDS);
   if (!KINDS.includes(f.kind)) problems.push(`${where}: kind must be one of ${KINDS.join(', ')}`);
   if (!isAuditablePath(f.docPath)) problems.push(`${where}: docPath must be a hand-written page (docs/**.md outside docs/coverage, ontology/**.ttl, README.md or a CLAUDE.md)`);
   if (typeof f.fingerprint !== 'string' || !FINGERPRINT.test(f.fingerprint)) {
@@ -70,16 +65,6 @@ function headerProblems(report) {
   }
   if (!Array.isArray(report.findings)) problems.push('findings must be a list');
   else if (report.findings.length > MAX_FINDINGS) problems.push(`more than ${MAX_FINDINGS} findings`);
-  return problems;
-}
-
-function duplicateProblems(findings) {
-  const seen = new Set();
-  const problems = [];
-  for (const f of findings) {
-    if (seen.has(f.fingerprint)) problems.push(`fingerprint ${f.fingerprint} appears twice`);
-    seen.add(f.fingerprint);
-  }
   return problems;
 }
 

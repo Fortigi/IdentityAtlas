@@ -19,6 +19,7 @@ import { validateReport } from './findings.js';
 import { executeFilings, planFilings } from './filings.js';
 import { createGitHubClient } from './github.js';
 import { pageFileName, renderPublicPage, updateIndex } from './publicPage.js';
+import { openCommand } from './reportFile.js';
 
 const USAGE = 'usage: cli.js validate <findings.json> | file <findings.json> <filings.json> [--dry-run] | publish <findings.json> <filings.json> <docs-dir>';
 
@@ -29,16 +30,6 @@ const defaultDeps = {
   createClient: createGitHubClient,
   log: console.log,
 };
-
-function load(path, deps) {
-  let parsed;
-  try {
-    parsed = JSON.parse(deps.readFile(path));
-  } catch (err) {
-    return { ok: false, problems: [`${path} is not readable JSON: ${err.message}`] };
-  }
-  return validateReport(parsed);
-}
 
 function describePlan(plan) {
   return plan.map(e => {
@@ -71,26 +62,15 @@ function publishCommand(report, filingsPath, docsDir, deps) {
 }
 
 export async function main(argv, deps = defaultDeps) {
-  const [command, findingsPath, second, third] = argv;
-  if (!['validate', 'file', 'publish'].includes(command) || !findingsPath) {
-    deps.log(USAGE);
-    return 2;
-  }
-  const result = load(findingsPath, deps);
-  if (!result.ok) {
-    result.problems.forEach(p => deps.log(`invalid: ${p}`));
-    return 1;
-  }
-  if (command === 'validate') {
-    deps.log(`${findingsPath} is valid: ${result.report.findings.length} findings`);
-    return 0;
-  }
+  const opened = openCommand(argv, deps, { commands: ['validate', 'file', 'publish'], usage: USAGE, validate: validateReport });
+  if ('exit' in opened) return opened.exit;
+  const { command, report, args: [second, third] } = opened;
   if (!second || (command === 'publish' && !third)) {
     deps.log(USAGE);
     return 2;
   }
-  if (command === 'file') return fileCommand(result.report, second, third === '--dry-run', deps);
-  return publishCommand(result.report, second, third, deps);
+  if (command === 'file') return fileCommand(report, second, third === '--dry-run', deps);
+  return publishCommand(report, second, third, deps);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

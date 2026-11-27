@@ -18,6 +18,7 @@ import { pathToFileURL } from 'url';
 import { validateReport } from './findings.js';
 import { describePlan, executeFilings, ISSUE_LABEL, planFilings } from './filings.js';
 import { createGitHubClient } from '../securityReview/github.js';
+import { openCommand } from '../securityReview/reportFile.js';
 
 const USAGE = 'usage: cli.js validate <findings.json> | file <findings.json> [--dry-run]';
 
@@ -28,16 +29,6 @@ export const defaultDeps = {
   createClient: createGitHubClient,
   log: console.log,
 };
-
-function load(path, deps) {
-  let parsed;
-  try {
-    parsed = JSON.parse(deps.readFile(path));
-  } catch (err) {
-    return { ok: false, problems: [`${path} is not readable JSON: ${err.message}`] };
-  }
-  return validateReport(parsed);
-}
 
 function onExistingPages(findings, deps) {
   const kept = [];
@@ -60,21 +51,9 @@ async function fileCommand(report, dryRun, deps) {
 }
 
 export async function main(argv, deps = defaultDeps) {
-  const [command, findingsPath, flag] = argv;
-  if (!['validate', 'file'].includes(command) || !findingsPath) {
-    deps.log(USAGE);
-    return 2;
-  }
-  const result = load(findingsPath, deps);
-  if (!result.ok) {
-    result.problems.forEach(p => deps.log(`invalid: ${p}`));
-    return 1;
-  }
-  if (command === 'validate') {
-    deps.log(`${findingsPath} is valid: ${result.report.findings.length} findings`);
-    return 0;
-  }
-  return fileCommand(result.report, flag === '--dry-run', deps);
+  const opened = openCommand(argv, deps, { commands: ['validate', 'file'], usage: USAGE, validate: validateReport });
+  if ('exit' in opened) return opened.exit;
+  return fileCommand(opened.report, opened.args[0] === '--dry-run', deps);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
