@@ -10,6 +10,7 @@ For the architecture rationale, sizing, and ops notes see [azure-deployment.md](
 
 - An App Service for Linux Containers running the Identity Atlas web image
 - A Postgres Flexible Server (random admin password kept in Key Vault; firewall limited to the web app's outbound IP addresses, or reachable only through a private endpoint with `networkMode=private`)
+- Optionally, a web app that cannot be reached from the internet at all, only from your own network: `networkMode=internal`, see [Internal mode](./azure-deployment.md#internal-mode-no-access-from-the-internet)
 - A Container App worker that polls Microsoft Graph on a schedule
 - Key Vault, Storage Account (for `/data/uploads`), Log Analytics
 - Entra ID single sign-on enforced on every API endpoint — **no anonymous access**

@@ -2,7 +2,7 @@
 
 > Companion to the Bicep in [`/azure`](https://github.com/Fortigi/IdentityAtlas/tree/main/azure).
 > One-click install: see the [README's Deploy to Azure button](https://github.com/Fortigi/IdentityAtlas/blob/main/README.md#deploy-to-azure).
-> **Target:** customers whose networking is owned by a central CCoE. The default public network mode needs no VNet, private endpoints or public IP that you provision; an opt-in private mode adds them for new deployments (see [Network modes](#network-modes)).
+> **Target:** customers whose networking is owned by a central CCoE. The default public network mode needs no VNet, private endpoints or public IP that you provision; an opt-in private mode adds them for new deployments, and an internal mode also takes the web app off the internet (see [Network modes](#network-modes)).
 
 ## What you get
 
@@ -269,22 +269,66 @@ AzureDiagnostics | where ResourceProvider == "MICROSOFT.DBFORPOSTGRESQL" and Cat
 
 The `networkMode` parameter picks the network shape.
 
-| | **public** (default) | **private** (new deployments only) |
-|---|---|---|
-| Postgres | Public endpoint. Firewall allows only the web app's possible outbound IP addresses (one rule each). | Public network access disabled; private endpoint. |
-| Key Vault | Public endpoint, default action Allow. Access still requires a Key Vault data-plane role (Azure RBAC) on the vault. | Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass). |
-| Storage (Azure Files) | Public endpoint, default action Allow (App Service and a VNet-less Container Apps environment can only mount it that way). | Private endpoint. Default action Deny after the deployment finishes. |
-| Web app | Public. | Public, with regional VNet integration and all outbound traffic routed through the VNet. |
-| Worker | Container Apps environment without a VNet. | Container Apps environment in a /23 subnet. |
-| Extra cost | — | Private endpoints and DNS zones, roughly €25/mo. |
+| | **public** (default) | **private** (new deployments only) | **internal** (new deployments only) |
+|---|---|---|---|
+| Postgres | Public endpoint. Firewall allows only the web app's possible outbound IP addresses (one rule each). | Public network access disabled; private endpoint. | As private. |
+| Key Vault | Public endpoint, default action Allow. Access still requires a Key Vault data-plane role (Azure RBAC) on the vault. | Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass). | As private. |
+| Storage (Azure Files) | Public endpoint, default action Allow (App Service and a VNet-less Container Apps environment can only mount it that way). | Private endpoint. Default action Deny after the deployment finishes. | As private. |
+| Web app | Public. | Public, with regional VNet integration and all outbound traffic routed through the VNet. | **No public endpoint.** Public network access disabled; reached through a private endpoint. Outbound as private. |
+| Worker | Container Apps environment without a VNet. | Container Apps environment in a /23 subnet. | As private, and the environment has no public inbound address. |
+| Who can open the app | Anyone on the internet (sign-in required), or the IP ranges you allow. | As public. | Only networks connected to the deployment's VNet: your office network and VPN, once you have connected them. |
+| Extra cost | — | Private endpoints and DNS zones, roughly €25/mo. | One more private endpoint and DNS zone, roughly €32/mo. |
 
-**Why private is for new deployments only:** the VNet of an existing Container Apps environment cannot be changed, so switching an existing deployment fails at the worker environment step. The Key Vault and Storage lock-down steps run last and only after everything else succeeded, so such a failed attempt does not close access that is still in use, but the deployment does not complete. Create a new resource group for a private deployment.
+**Why private and internal are for new deployments only:** the VNet of an existing Container Apps environment cannot be changed, so switching an existing deployment fails at the worker environment step. The Key Vault and Storage lock-down steps run last and only after everything else succeeded, so such a failed attempt does not close access that is still in use, but the deployment does not complete. Create a new resource group for a private or internal deployment. Going from private to internal later is not possible either, for the same reason: the worker environment would have to change.
 
-During a private-mode redeploy, Key Vault and Storage are opened (default action Allow) while the bootstrap script runs and closed again at the end.
+During a private-mode or internal-mode redeploy, Key Vault and Storage are opened (default action Allow) while the bootstrap script runs and closed again at the end.
+
+### Internal mode: no access from the internet
+
+Choose `networkMode=internal` when Identity Atlas may only be used from your own network: in the office or over VPN. It is the private mode with one difference that matters: the web app has no public endpoint at all. Nothing on the internet can connect to it, signed in or not.
+
+```powershell
+az deployment group create -g <new-rg> --template-file azure/main.bicep `
+  --parameters networkMode=internal vnetAddressPrefix=10.42.0.0/16
+```
+
+In the portal, set **Network Mode** to `internal` on the Deploy to Azure form.
+
+**What the template does in this mode**, on top of the private mode:
+
+- switches off public network access on the web app, which also closes its deployment (SCM / Kudu) site;
+- creates a private endpoint for the web app in the `snet-pe` subnet;
+- creates the private DNS zone `privatelink.azurewebsites.net` and links it to the VNet, so the worker finds the web app on its private address;
+- creates the worker's Container Apps environment without a public inbound address.
+
+**What you do afterwards.** The template creates its own VNet. Until that VNet is connected to your network, nobody can open the app, you included. Two steps, both for your network team:
+
+1. **Connect the VNet to your network.** Peer the VNet (deployment output `vnetName`) with your hub, or connect it another way your landing zone prescribes. Pick `vnetAddressPrefix` so it does not overlap your own ranges; it must be a /16.
+2. **Make the app's name resolve to its private address.** On your network, `<prefix>-web.azurewebsites.net` (output `appHostname`) must resolve to the address in output `webPrivateIpAddress`. Either link the `privatelink.azurewebsites.net` zone from the resource group to the network your DNS resolvers use, or add the same record to the zone you already manage centrally.
+
+Then set up sign-in as usual, with the app URL as the redirect URI. Sign-in itself still goes through Microsoft's public sign-in page, from the user's browser; that is Entra ID, not Identity Atlas.
+
+**Check that it is closed.** From a machine outside your network:
+
+```bash
+curl -i https://<prefix>-web.azurewebsites.net/api/health
+# HTTP/1.1 403 Forbidden  (answered by Azure's front end, not by Identity Atlas)
+```
+
+From inside your network the same call returns `200`.
+
+**What this mode does not do:**
+
+- **Outbound traffic is not restricted.** The web app and the worker still reach the internet from the VNet: for the container images (`ghcr.io`, unless you [pull from your own registry](#pulling-the-images-from-your-own-registry)), for Entra ID's signing keys (`login.microsoftonline.com`), and for the sources your crawlers read. To force that traffic through your firewall, add a route table to the `snet-web` and `snet-aca` subnets; allow at least those destinations.
+- **It does not use a VNet you already have.** Bringing your own subnets is not supported yet.
+- **Key Vault and Storage are opened while a deployment runs**, as in the private mode, because the bootstrap script runs in a Microsoft-hosted container. A subscription policy that denies public network access on those services makes the deployment fail.
+- **The report generator is not available.** `deployReportGenerator=true` together with `networkMode=internal` is refused before anything is deployed.
+- **You operate it from inside the network.** Log streaming and anything else that uses the web app's SCM site only works from a connected network. Azure portal and CLI operations on the resources themselves are unaffected.
+- **The automated release test does not deploy this mode.** See [what the release test does not cover](../contributing/release-process.md).
 
 **Postgres firewall (public mode).** Earlier templates allowed "all Azure services" (`0.0.0.0`), which admits resources from every Azure tenant. Redeploying with the current template narrows the existing rule, keeping its name `AllowAllAzureServicesAndResourcesWithinAzureIps`, to one of the web app's outbound addresses and adds `web-app-outbound-N` rules for the rest. The outbound list changes only when the App Service Plan moves to another pricing tier; a redeploy refreshes the rules. If you need the old behaviour, set `postgresAllowAllAzureServices=true` (not recommended).
 
-**Web app access restrictions.** `webAccessDefaultAction` (default `Allow`) and `webAllowedIpCidrs` control who can reach the web app. With `Deny`, only the listed CIDRs can — plus, in private mode, the worker subnet. In public mode the worker calls the web app's public URL from the Container Apps environment's outbound address, so add that address to `webAllowedIpCidrs` before you choose `Deny`.
+**Web app access restrictions.** `webAccessDefaultAction` (default `Allow`) and `webAllowedIpCidrs` control who can reach the web app. With `Deny`, only the listed CIDRs can — plus, in private mode, the worker subnet. In public mode the worker calls the web app's public URL from the Container Apps environment's outbound address, so add that address to `webAllowedIpCidrs` before you choose `Deny`. These rules still leave a public endpoint that refuses most callers; the internal mode removes the endpoint, and the two settings have no effect there.
 
 **TLS to Postgres.** The web app sets `PGSSLMODE=require`. With node-postgres this already verifies the server certificate chain and hostname (it is treated as `ssl: true`, unlike libpq's `require`), so no separate `verify-full` setting is needed.
 
@@ -340,7 +384,8 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | **Auth** | `AUTH_ENABLED=true` from the first deploy, with empty tenant and client IDs | The deployment is internet-exposed, so it must not be usable without sign-in. Until the IDs are filled in (Web App environment variables, or the `entraTenantId` / `entraClientId` parameters) the app shows a setup page instead of data. |
 | **HA** | Off | Single-replica everywhere. Keeps cost predictable. |
 | **Application Insights** | Skipped | Log Analytics covers stdout + system metrics. AI is for distributed tracing, not needed at this scale. |
-| **VNet integration** | Opt-in `networkMode=private` for new deployments | Keeps the default shape free of networking prerequisites while offering private endpoints when required. The template creates its own VNet; bringing a CCoE-provided subnet is not supported yet. |
+| **VNet integration** | Opt-in `networkMode=private` or `internal` for new deployments | Keeps the default shape free of networking prerequisites while offering private endpoints when required. The template creates its own VNet; bringing a CCoE-provided subnet is not supported yet. |
+| **Web app without a public endpoint** | Its own mode (`internal`), not a switch on private | It changes who can reach the app and needs work on the customer's network before anyone can sign in, so it must be a deliberate choice. A private deployment keeps working exactly as before. |
 
 ## Limitations
 
@@ -349,6 +394,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 - **No Entra App Registration auto-creation.** The registration, its `Admin` app role and the role assignment are done by hand before the first sign-in — see the [portal walkthrough](./azure-deployment-walkthrough.md).
 - **No platform-level App Service authentication (Easy Auth).** Entra sign-in is enforced inside the application, not by the App Service `authSettingsV2` config. Microsoft Defender for Cloud therefore flags the web app with *"App Service apps should have authentication enabled"* on every deployment — expected, and cleared with a Defender exemption. See [azure-deployment-walkthrough.md](./azure-deployment-walkthrough.md#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled).
 - **Public Key Vault / Storage endpoints in the default mode.** Use `networkMode=private` on a new deployment for private endpoints. An existing public deployment cannot be switched in place.
+- **A public web app in the default and private modes.** Use `networkMode=internal` on a new deployment for a web app that is only reachable from your own network. See [Internal mode](#internal-mode-no-access-from-the-internet) for what it leaves open.
 - **Postgres uses password authentication.** Entra ID authentication with the web app's managed identity is a follow-up.
 
 ## File index
@@ -365,8 +411,9 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | `azure/Grant-CrawlerIdentityGraphPermissions.ps1` | Grants the crawler identity its read-only Microsoft Graph permissions |
 | `azure/modules/key-vault.bicep` | Key Vault (Azure RBAC) + its role assignments + network ACL |
 | `azure/modules/resource-diagnostics.bicep` | Diagnostic settings: Key Vault audit events and PostgreSQL server logs (plus metrics) to Log Analytics |
-| `azure/modules/network.bicep` | Private mode: VNet, subnets, private DNS zones |
-| `azure/modules/private-endpoints.bicep` | Private mode: private endpoints for Key Vault, Storage, Postgres |
+| `azure/modules/network.bicep` | Private and internal modes: VNet, subnets, private DNS zones |
+| `azure/modules/private-endpoints.bicep` | Private and internal modes: private endpoints for Key Vault, Storage, Postgres |
+| `azure/modules/web-private-endpoint.bicep` | Internal mode: private endpoint for the web app |
 | `azure/modules/postgres-firewall.bicep` | Public mode: Postgres firewall rules for the web app's outbound IPs |
 | `azure/modules/bootstrap.bicep` | One-shot deployment script for secrets |
 | `azure/modules/postgres.bicep` | Postgres Flex |

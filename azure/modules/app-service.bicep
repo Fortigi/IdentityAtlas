@@ -87,6 +87,9 @@ param vnetIntegrationSubnetId string = ''
 @description('Private network mode: the Container Apps subnet of the worker, allowed through the access restrictions.')
 param workerSubnetId string = ''
 
+@description('Internal network mode: switch off the public endpoint of the web app (and of its SCM site). It is then reachable only through its private endpoint, which main.bicep creates.')
+param disablePublicNetworkAccess bool = false
+
 @description('Versioned Key Vault secret URI of the Postgres admin password (from the bootstrap script).')
 param pgPasswordSecretUri string
 
@@ -158,6 +161,9 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
     // routed through the VNet so Key Vault references, the Azure Files mount and
     // the Postgres connection use the private endpoints. Public mode: no VNet.
     virtualNetworkSubnetId: privateNetworking ? vnetIntegrationSubnetId : null
+    // Internal mode: no public endpoint at all. null in the other modes, so they
+    // send the same properties as before and the access restrictions below decide.
+    publicNetworkAccess: disablePublicNetworkAccess ? 'Disabled' : null
     siteConfig: {
       vnetRouteAllEnabled: privateNetworking
       linuxFxVersion: linuxFxVersion
