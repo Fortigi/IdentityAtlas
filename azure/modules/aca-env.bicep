@@ -29,6 +29,9 @@ param promptCacheShareName string
 @description('Private network mode: /23 subnet for the environment. Empty = no VNet (public mode). The VNet of an existing environment cannot be changed, so this is for new deployments only.')
 param infrastructureSubnetId string = ''
 
+@description('Internal network mode: create the environment without a public inbound address. Like the subnet, this cannot be changed on an existing environment.')
+param internalOnly bool = false
+
 // Reference the storage account so we can read its key locally via listKeys(),
 // instead of receiving it as a param/output (outputs persist in ARM deployment
 // history — audit H-1).
@@ -56,10 +59,11 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
     }
   }, empty(infrastructureSubnetId) ? {} : {
     // Consumption-only environment inside the given subnet; still has public
-    // outbound access, and no ingress is exposed (the worker has none).
+    // outbound access, and no ingress is exposed (the worker has none). In the
+    // internal mode the environment also gets no public inbound address.
     vnetConfiguration: {
       infrastructureSubnetId: infrastructureSubnetId
-      internal: false
+      internal: internalOnly
     }
   })
 }

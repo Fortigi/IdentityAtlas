@@ -88,8 +88,10 @@ client secret.
 - The two largest profiles put PostgreSQL on a compute tier you cannot scale back
   down from. Start smaller unless you know you need them.
 - The default shape uses public endpoints, with the database restricted to the web
-  application's outbound addresses. A private network shape exists, and it has to
-  be chosen when the deployment is created.
+  application's outbound addresses. A private network shape exists, and so does an
+  internal one in which the application cannot be reached from the internet at
+  all, only from your own network. Either has to be chosen when the deployment is
+  created.
 
 **Pages.** [Azure Deployment Walkthrough](../architecture/azure-deployment-walkthrough.md)
 for the portal steps, [Azure Deployment Reference](../architecture/azure-deployment.md)

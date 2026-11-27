@@ -141,7 +141,7 @@ Know these before you read a green run as "safe":
 - **Data across an Azure upgrade without sign-in.** Nothing can be loaded into a locked install, so `main-upgrade` checks only that the upgrade migrates and stays locked; data surviving an Azure upgrade is checked by `auth-upgrade`.
 - **Real data.** Only the synthetic demo dataset and a handful of ingested records. No crawler talks to a real system, and nothing is large: volume is covered, partly, by the load and soak tests in PR CI.
 - **Upgrades across more than one release**, downgrades, and rolling back by restoring onto the older version.
-- **Azure beyond the defaults**: private network mode, your own container registry, `webAccessDefaultAction=Deny`, sizes other than `xs`. On Azure the report generator is checked to be deployed, not asked a question. And Azure is skipped for releases that did not change the templates (see [the policy](#release-policy)): an image that starts in Docker but not on App Service would be caught at the next minor.
+- **Azure beyond the defaults**: private and internal network modes, your own container registry, `webAccessDefaultAction=Deny`, sizes other than `xs`. On Azure the report generator is checked to be deployed, not asked a question. And Azure is skipped for releases that did not change the templates (see [the policy](#release-policy)): an image that starts in Docker but not on App Service would be caught at the next minor.
 - **The portable report model** (`-WithLLM`), and external LLM providers anywhere.
 
 ---

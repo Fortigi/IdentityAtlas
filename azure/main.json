@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "14713790137879676678"
+      "templateHash": "13956097553017774144"
     }
   },
   "parameters": {
@@ -81,10 +81,18 @@
       "defaultValue": "public",
       "allowedValues": [
         "public",
-        "private"
+        "private",
+        "internal"
       ],
       "metadata": {
-        "description": "Network shape. **public** (default) = public endpoints; Postgres accepts only the web app's outbound IPs. **private** = VNet + private endpoints for Key Vault, Storage and Postgres (about EUR 25/mo extra). Choose private only when creating a NEW deployment: an existing Container Apps environment cannot be moved into a VNet."
+        "description": "Network shape. **public** (default) = public endpoints; Postgres accepts only the web app's outbound IPs. **private** = VNet + private endpoints for Key Vault, Storage and Postgres (about EUR 25/mo extra); the web app stays reachable from the internet. **internal** = private, and the web app has no public endpoint either: users reach it only through the VNet, which you connect to your own network (about EUR 32/mo extra). Choose private or internal only when creating a NEW deployment: an existing Container Apps environment cannot be moved into a VNet."
+      }
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.42.0.0/16",
+      "metadata": {
+        "description": "Private and internal network modes: address space of the VNet the template creates. Must be a /16. Change it when 10.42.0.0/16 overlaps a network you connect the VNet to."
       }
     },
     "webAccessDefaultAction": {
@@ -183,8 +191,10 @@
     "_imageTag": "[if(not(empty(parameters('imageTag'))), parameters('imageTag'), if(equals(parameters('imageChannel'), 'stable'), 'latest', 'edge'))]",
     "privateRegistry": "[not(empty(parameters('containerRegistryResourceId')))]",
     "_acrIdParts": "[split(if(variables('privateRegistry'), parameters('containerRegistryResourceId'), '/subscriptions/none/resourceGroups/none/providers/Microsoft.ContainerRegistry/registries/none'), '/')]",
-    "privateNetworking": "[equals(parameters('networkMode'), 'private')]",
-    "kvName": "[take(format('{0}-kv-{1}', variables('namePrefix'), uniqueString(resourceGroup().id)), 24)]"
+    "privateNetworking": "[not(equals(parameters('networkMode'), 'public'))]",
+    "internalNetworking": "[equals(parameters('networkMode'), 'internal')]",
+    "kvName": "[take(format('{0}-kv-{1}', variables('namePrefix'), uniqueString(resourceGroup().id)), 24)]",
+    "reportGeneratorAllowed": "[if(and(parameters('deployReportGenerator'), variables('internalNetworking')), fail('The report generator is not available with networkMode=internal. Deploy without deployReportGenerator, or use networkMode=private.'), true())]"
   },
   "resources": [
     {
@@ -438,6 +448,12 @@
           },
           "location": {
             "value": "[variables('location')]"
+          },
+          "addressPrefix": {
+            "value": "[parameters('vnetAddressPrefix')]"
+          },
+          "includeWebZone": {
+            "value": "[variables('internalNetworking')]"
           }
         },
         "template": {
@@ -447,7 +463,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "6369763020199053706"
+              "templateHash": "6849064470814787759"
             }
           },
           "parameters": {
@@ -468,6 +484,13 @@
               "defaultValue": "10.42.0.0/16",
               "metadata": {
                 "description": "VNet address space (/16). Change it only if it overlaps a network you peer with."
+              }
+            },
+            "includeWebZone": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Internal network mode: also create the private DNS zone for the web app's private endpoint."
               }
             }
           },
@@ -559,12 +582,44 @@
                 "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('namePrefix')))]",
                 "[resourceId('Microsoft.Network/privateDnsZones', variables('zoneNames')[copyIndex()])]"
               ]
+            },
+            {
+              "condition": "[parameters('includeWebZone')]",
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.azurewebsites.net",
+              "location": "global"
+            },
+            {
+              "condition": "[parameters('includeWebZone')]",
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.azurewebsites.net', format('{0}-vnet-link', parameters('namePrefix')))]",
+              "location": "global",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('namePrefix')))]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('namePrefix')))]",
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurewebsites.net')]"
+              ]
             }
           ],
           "outputs": {
             "vnetId": {
               "type": "string",
               "value": "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet', parameters('namePrefix')))]"
+            },
+            "vnetName": {
+              "type": "string",
+              "value": "[format('{0}-vnet', parameters('namePrefix'))]"
+            },
+            "webZoneId": {
+              "type": "string",
+              "value": "[if(parameters('includeWebZone'), resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurewebsites.net'), '')]"
             },
             "webSubnetId": {
               "type": "string",
@@ -1657,7 +1712,10 @@
             "value": "[parameters('webAllowedIpCidrs')]"
           },
           "vnetIntegrationSubnetId": "[if(variables('privateNetworking'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.webSubnetId.value), createObject('value', ''))]",
-          "workerSubnetId": "[if(variables('privateNetworking'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.acaSubnetId.value), createObject('value', ''))]"
+          "workerSubnetId": "[if(variables('privateNetworking'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.acaSubnetId.value), createObject('value', ''))]",
+          "disablePublicNetworkAccess": {
+            "value": "[variables('internalNetworking')]"
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -1666,7 +1724,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "5052132923975999461"
+              "templateHash": "7165475026961721434"
             }
           },
           "parameters": {
@@ -1824,6 +1882,13 @@
                 "description": "Private network mode: the Container Apps subnet of the worker, allowed through the access restrictions."
               }
             },
+            "disablePublicNetworkAccess": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Internal network mode: switch off the public endpoint of the web app (and of its SCM site). It is then reachable only through its private endpoint, which main.bicep creates."
+              }
+            },
             "pgPasswordSecretUri": {
               "type": "string",
               "metadata": {
@@ -1894,6 +1959,7 @@
                 "httpsOnly": true,
                 "keyVaultReferenceIdentity": "[parameters('identityId')]",
                 "virtualNetworkSubnetId": "[if(variables('privateNetworking'), parameters('vnetIntegrationSubnetId'), null())]",
+                "publicNetworkAccess": "[if(parameters('disablePublicNetworkAccess'), 'Disabled', null())]",
                 "siteConfig": {
                   "vnetRouteAllEnabled": "[variables('privateNetworking')]",
                   "linuxFxVersion": "[variables('linuxFxVersion')]",
@@ -2280,6 +2346,133 @@
       ]
     },
     {
+      "condition": "[variables('internalNetworking')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "web-private-endpoint",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "namePrefix": {
+            "value": "[variables('namePrefix')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "subnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.privateEndpointSubnetId.value]"
+          },
+          "webAppId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appId.value]"
+          },
+          "webZoneId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.webZoneId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "3634989420696552757"
+            }
+          },
+          "parameters": {
+            "namePrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource name prefix"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "subnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Subnet for the private endpoint"
+              }
+            },
+            "webAppId": {
+              "type": "string",
+              "metadata": {
+                "description": "Web app (Microsoft.Web/sites) resource ID"
+              }
+            },
+            "webZoneId": {
+              "type": "string",
+              "metadata": {
+                "description": "privatelink.azurewebsites.net zone ID"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-pe-web', parameters('namePrefix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('subnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-pe-web', parameters('namePrefix'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[parameters('webAppId')]",
+                      "groupIds": [
+                        "sites"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('{0}-pe-web', parameters('namePrefix')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "web",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('webZoneId')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-pe-web', parameters('namePrefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "privateIpAddress": {
+              "type": "string",
+              "metadata": {
+                "description": "Private IPv4 address of the web app inside the VNet: what the web app hostname must resolve to on the networks that use it."
+              },
+              "value": "[reference(resourceId('Microsoft.Network/privateEndpoints', format('{0}-pe-web', parameters('namePrefix'))), '2024-05-01').customDnsConfigs[0].ipAddresses[0]]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'network')]",
+        "[resourceId('Microsoft.Resources/deployments', 'app-service')]"
+      ]
+    },
+    {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "aca-env",
@@ -2307,7 +2500,10 @@
           "promptCacheShareName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storage'), '2025-04-01').outputs.promptCacheShareName.value]"
           },
-          "infrastructureSubnetId": "[if(variables('privateNetworking'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.acaSubnetId.value), createObject('value', ''))]"
+          "infrastructureSubnetId": "[if(variables('privateNetworking'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.acaSubnetId.value), createObject('value', ''))]",
+          "internalOnly": {
+            "value": "[variables('internalNetworking')]"
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -2316,7 +2512,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "5999433287341358078"
+              "templateHash": "13315318163275807565"
             }
           },
           "parameters": {
@@ -2364,6 +2560,13 @@
               "metadata": {
                 "description": "Private network mode: /23 subnet for the environment. Empty = no VNet (public mode). The VNet of an existing environment cannot be changed, so this is for new deployments only."
               }
+            },
+            "internalOnly": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Internal network mode: create the environment without a public inbound address. Like the subnet, this cannot be changed on an existing environment."
+              }
             }
           },
           "resources": [
@@ -2372,7 +2575,7 @@
               "apiVersion": "2024-10-02-preview",
               "name": "[format('{0}-cae', parameters('namePrefix'))]",
               "location": "[parameters('location')]",
-              "properties": "[union(createObject('appLogsConfiguration', createObject('destination', 'azure-monitor')), if(empty(parameters('infrastructureSubnetId')), createObject(), createObject('vnetConfiguration', createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', false()))))]"
+              "properties": "[union(createObject('appLogsConfiguration', createObject('destination', 'azure-monitor')), if(empty(parameters('infrastructureSubnetId')), createObject(), createObject('vnetConfiguration', createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', parameters('internalOnly')))))]"
             },
             {
               "type": "Microsoft.Insights/diagnosticSettings",
@@ -2677,11 +2880,12 @@
         "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
         "[resourceId('Microsoft.Resources/deployments', 'identities')]",
         "[resourceId('Microsoft.Resources/deployments', 'registry-pull-identity')]",
-        "[resourceId('Microsoft.Resources/deployments', 'app-service')]"
+        "[resourceId('Microsoft.Resources/deployments', 'app-service')]",
+        "[resourceId('Microsoft.Resources/deployments', 'web-private-endpoint')]"
       ]
     },
     {
-      "condition": "[parameters('deployReportGenerator')]",
+      "condition": "[and(parameters('deployReportGenerator'), variables('reportGeneratorAllowed'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "aca-app-report-generator",
@@ -3375,7 +3579,7 @@
     "appUrl": {
       "type": "string",
       "metadata": {
-        "description": "Public URL of the Identity Atlas web app. Use this as the SPA redirect URI when you register the Entra App in Step 2a."
+        "description": "URL of the Identity Atlas web app. Use this as the SPA redirect URI when you register the Entra App in Step 2a. In the internal network mode it only answers on networks that resolve the hostname to webPrivateIpAddress."
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appUrl.value]"
     },
@@ -3431,9 +3635,23 @@
     "networkModeApplied": {
       "type": "string",
       "metadata": {
-        "description": "Network shape in use (public or private)."
+        "description": "Network shape in use (public, private or internal)."
       },
       "value": "[parameters('networkMode')]"
+    },
+    "webPrivateIpAddress": {
+      "type": "string",
+      "metadata": {
+        "description": "Internal network mode: the private IPv4 address of the web app. Make the web app hostname resolve to it on your own network. Empty in the other modes."
+      },
+      "value": "[if(variables('internalNetworking'), reference(resourceId('Microsoft.Resources/deployments', 'web-private-endpoint'), '2025-04-01').outputs.privateIpAddress.value, '')]"
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Private and internal network modes: name of the VNet the template created, for connecting (peering) it to your own network. Empty in the public mode."
+      },
+      "value": "[if(variables('privateNetworking'), reference(resourceId('Microsoft.Resources/deployments', 'network'), '2025-04-01').outputs.vnetName.value, '')]"
     },
     "logAnalyticsCreated": {
       "type": "bool",

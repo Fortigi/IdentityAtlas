@@ -1,0 +1,3 @@
+- Added an internal network mode for Azure deployments (`networkMode=internal`): the web app has no public endpoint and can only be reached from your own network, through a private endpoint. For new deployments.
+- Added the `vnetAddressPrefix` parameter, so the network the Azure template creates can get an address range that does not overlap yours.
+- The Azure deployment reference explains the internal mode: what it closes, what you connect on your own network afterwards, and what it leaves open.

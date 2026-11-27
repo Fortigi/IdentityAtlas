@@ -1,12 +1,15 @@
-// Virtual network for the private network mode (SEC-2026-09 H-06 / L-19).
-// Deployed only when main.bicep's networkMode = 'private'.
+// Virtual network for the private and internal network modes (SEC-2026-09
+// H-06 / L-19). Deployed when main.bicep's networkMode is 'private' or 'internal'.
 //
 //   snet-web   /26  App Service regional VNet integration (delegated)
-//   snet-pe    /26  private endpoints: Key Vault, Storage (file), Postgres
+//   snet-pe    /26  private endpoints: Key Vault, Storage (file), Postgres,
+//                   and in the internal mode the web app
 //   snet-aca   /23  Container Apps environment (Consumption-only needs a /23)
 //
 // Private DNS zones are linked to the VNet so the web app and the worker
 // resolve the Key Vault, Storage and Postgres names to their private endpoints.
+// The internal mode adds privatelink.azurewebsites.net, so the worker reaches
+// the web app on its private endpoint as well.
 //
 // defaultOutboundAccess stays on for the two workload subnets: the web app
 // routes all outbound traffic through the VNet (needed to use the private
@@ -21,6 +24,9 @@ param location string
 
 @description('VNet address space (/16). Change it only if it overlaps a network you peer with.')
 param addressPrefix string = '10.42.0.0/16'
+
+@description('Internal network mode: also create the private DNS zone for the web app\'s private endpoint.')
+param includeWebZone bool = false
 
 var octets = split(split(addressPrefix, '/')[0], '.')
 var base = '${octets[0]}.${octets[1]}'
@@ -84,7 +90,26 @@ resource zoneLinks 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-0
   }
 }]
 
+// Internal mode only. Declared apart from the loop above so the private mode
+// creates exactly the zones it did before.
+resource webZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (includeWebZone) {
+  name: 'privatelink.azurewebsites.net'
+  location: 'global'
+}
+
+resource webZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (includeWebZone) {
+  parent: webZone
+  name: '${namePrefix}-vnet-link'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: { id: vnet.id }
+  }
+}
+
 output vnetId string = vnet.id
+output vnetName string = vnet.name
+output webZoneId string = includeWebZone ? webZone.id : ''
 output webSubnetId string = '${vnet.id}/subnets/snet-web'
 output privateEndpointSubnetId string = '${vnet.id}/subnets/snet-pe'
 output acaSubnetId string = '${vnet.id}/subnets/snet-aca'

@@ -19,7 +19,11 @@
 // networkMode = 'public' (default): no VNet, no private endpoints.
 // networkMode = 'private' (NEW deployments only): a VNet with private endpoints
 // for Key Vault, Storage and Postgres; the web app uses VNet integration and the
-// worker environment runs in the VNet. See docs/architecture/azure-deployment.md.
+// worker environment runs in the VNet.
+// networkMode = 'internal' (NEW deployments only): the private shape, and the
+// web app itself has no public endpoint either: it is reached through a private
+// endpoint, from the VNet and the networks connected to it.
+// See docs/architecture/azure-deployment.md.
 
 targetScope = 'resourceGroup'
 
@@ -64,9 +68,12 @@ param reportGeneratorAllowedCallerIps array = []
 @description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
 
-@description('Network shape. **public** (default) = public endpoints; Postgres accepts only the web app\'s outbound IPs. **private** = VNet + private endpoints for Key Vault, Storage and Postgres (about EUR 25/mo extra). Choose private only when creating a NEW deployment: an existing Container Apps environment cannot be moved into a VNet.')
-@allowed(['public', 'private'])
+@description('Network shape. **public** (default) = public endpoints; Postgres accepts only the web app\'s outbound IPs. **private** = VNet + private endpoints for Key Vault, Storage and Postgres (about EUR 25/mo extra); the web app stays reachable from the internet. **internal** = private, and the web app has no public endpoint either: users reach it only through the VNet, which you connect to your own network (about EUR 32/mo extra). Choose private or internal only when creating a NEW deployment: an existing Container Apps environment cannot be moved into a VNet.')
+@allowed(['public', 'private', 'internal'])
 param networkMode string = 'public'
+
+@description('Private and internal network modes: address space of the VNet the template creates. Must be a /16. Change it when 10.42.0.0/16 overlaps a network you connect the VNet to.')
+param vnetAddressPrefix string = '10.42.0.0/16'
 
 @description('Web app access restriction for requests that match no allow rule. **Allow** (default) = reachable from the internet (sign-in is enforced by the app). **Deny** = only webAllowedIpCidrs (and, in private mode, the worker subnet). In public mode the worker calls the web app\'s public URL, so add its outbound IP to webAllowedIpCidrs before choosing Deny.')
 @allowed(['Allow', 'Deny'])
@@ -179,7 +186,9 @@ var reportGeneratorImage = '${registryServer}/fortigi/identity-atlas-report-gene
 // name. Existing deployments keep their current password until an operator sets
 // rotatePostgresPassword=true (see modules/bootstrap.bicep).
 
-var privateNetworking = networkMode == 'private'
+// 'internal' is the private shape plus a web app without a public endpoint.
+var privateNetworking = networkMode != 'public'
+var internalNetworking = networkMode == 'internal'
 
 // ─── Foundation ──────────────────────────────────────────────────────────
 
@@ -210,6 +219,8 @@ module network 'modules/network.bicep' = if (privateNetworking) {
   params: {
     namePrefix: namePrefix
     location: location
+    addressPrefix: vnetAddressPrefix
+    includeWebZone: internalNetworking
   }
 }
 
@@ -343,6 +354,7 @@ module web 'modules/app-service.bicep' = {
     allowedIpCidrs: webAllowedIpCidrs
     vnetIntegrationSubnetId: privateNetworking ? network!.outputs.webSubnetId : ''
     workerSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
+    disablePublicNetworkAccess: internalNetworking
   }
 }
 
@@ -374,6 +386,19 @@ module privateEndpoints 'modules/private-endpoints.bicep' = if (privateNetworkin
   }
 }
 
+// Internal mode: the web app gets a private endpoint and loses its public one
+// (disablePublicNetworkAccess above). Its own module, after the web app.
+module webPrivateEndpoint 'modules/web-private-endpoint.bicep' = if (internalNetworking) {
+  name: 'web-private-endpoint'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    subnetId: network!.outputs.privateEndpointSubnetId
+    webAppId: web.outputs.appId
+    webZoneId: network!.outputs.webZoneId
+  }
+}
+
 // ─── Container Apps Environment (for the worker) ─────────────────────────
 
 module cae 'modules/aca-env.bicep' = {
@@ -386,6 +411,7 @@ module cae 'modules/aca-env.bicep' = {
     uploadsShareName: storage.outputs.uploadsShareName
     promptCacheShareName: storage.outputs.promptCacheShareName
     infrastructureSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
+    internalOnly: internalNetworking
   }
 }
 
@@ -407,11 +433,21 @@ module worker 'modules/aca-app-worker.bicep' = {
     cpu: profile.workerCpu
     memory: profile.workerMemory
   }
+  // Internal mode: the worker reaches the web app on its private endpoint.
+  dependsOn: [webPrivateEndpoint]
 }
 
 // ─── Report generator Container App (experimental, opt-in) ──────────────
 
-module reportGenerator 'modules/report-generator-kv-key.bicep' = if (deployReportGenerator) {
+// Not in the internal mode: the worker environment has no public address there,
+// and the web app would need a private DNS zone for the environment's domain to
+// find the report generator. Refused up front instead of deploying something
+// the web app cannot reach.
+var reportGeneratorAllowed = (deployReportGenerator && internalNetworking)
+  ? fail('The report generator is not available with networkMode=internal. Deploy without deployReportGenerator, or use networkMode=private.')
+  : true
+
+module reportGenerator 'modules/report-generator-kv-key.bicep' = if (deployReportGenerator && reportGeneratorAllowed) {
   name: 'aca-app-report-generator'
   params: {
     // The API key is read from Key Vault inside the wrapper (bootstrap writes it).
@@ -468,7 +504,7 @@ module storageLockdown 'modules/storage.bicep' = if (privateNetworking) {
 
 // ─── Outputs ────────────────────────────────────────────────────────────
 
-@description('Public URL of the Identity Atlas web app. Use this as the SPA redirect URI when you register the Entra App in Step 2a.')
+@description('URL of the Identity Atlas web app. Use this as the SPA redirect URI when you register the Entra App in Step 2a. In the internal network mode it only answers on networks that resolve the hostname to webPrivateIpAddress.')
 output appUrl string = web.outputs.appUrl
 
 @description('Web app hostname (no scheme).')
@@ -492,8 +528,14 @@ output postgresFqdn string = postgres.outputs.pgFqdn
 @description('Sizing profile in use.')
 output sizeProfileApplied string = sizeProfile
 
-@description('Network shape in use (public or private).')
+@description('Network shape in use (public, private or internal).')
 output networkModeApplied string = networkMode
+
+@description('Internal network mode: the private IPv4 address of the web app. Make the web app hostname resolve to it on your own network. Empty in the other modes.')
+output webPrivateIpAddress string = internalNetworking ? webPrivateEndpoint!.outputs.privateIpAddress : ''
+
+@description('Private and internal network modes: name of the VNet the template created, for connecting (peering) it to your own network. Empty in the public mode.')
+output vnetName string = privateNetworking ? network!.outputs.vnetName : ''
 
 @description('True if a new Log Analytics workspace was created; false if BYO was used.')
 output logAnalyticsCreated bool = logs.outputs.createdNew
