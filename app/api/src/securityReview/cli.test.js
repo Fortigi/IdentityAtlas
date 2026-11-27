@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { main } from './cli.js';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { defaultDeps, main } from './cli.js';
 import { marker } from './filings.js';
 import { ROWS_MARKER } from './publicPage.js';
 import { finding, report } from './__mocks__/sampleReport.js';
@@ -103,5 +106,18 @@ describe('security review cli', () => {
     expect(d.written['docs/security/review-2026-12.md']).toContain('| SR-2026-12-01 | High | A05 | Details withheld until fixed | [#50](https://github.com/o/r/issues/50) |');
     expect(d.written['docs/security/index.md']).toContain('[Review, December 2026](review-2026-12.md)');
     expect(d.lines).toEqual(['Wrote review-2026-12.md and updated index.md']);
+  });
+});
+
+describe('security review cli: real file system', () => {
+  it('writes a file and reads back exactly what it wrote', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sr-cli-'));
+    try {
+      const path = join(dir, 'filings.json');
+      defaultDeps.writeFile(path, '{"a":1}\n');
+      expect(defaultDeps.readFile(path)).toBe('{"a":1}\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

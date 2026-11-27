@@ -23,7 +23,7 @@ import { openCommand } from './reportFile.js';
 
 const USAGE = 'usage: cli.js validate <findings.json> | file <findings.json> <filings.json> [--dry-run] | publish <findings.json> <filings.json> <docs-dir>';
 
-const defaultDeps = {
+export const defaultDeps = {
   readFile: p => readFileSync(p, 'utf8'),
   writeFile: (p, s) => writeFileSync(p, s),
   env: process.env,
