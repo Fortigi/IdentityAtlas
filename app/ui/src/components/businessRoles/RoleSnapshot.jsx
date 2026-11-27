@@ -1,10 +1,10 @@
 import WayChips from './WayChips';
-import { accessDetail } from './accessModel';
+import { accessDetail, participantLabel, participantNotes } from './accessModel';
 
 // ─── A business role as it was at one moment ─────────────────────────────
 // The snapshot a composition review stored (lib/businessRoleSnapshot.js): the
-// type, who held and answered for it, its policies with their rules, and the
-// resources it contained. Read-only; it never changes after the review.
+// type, who held and answered for it, who approved requests and reviewed the
+// holders, its policies with their rules, and the resources it contained. Read-only; it never changes after the review.
 
 const LABEL = 'text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-400';
 const TEXT = 'text-sm text-gray-800 dark:text-gray-200';
@@ -29,6 +29,27 @@ function Owners({ owners }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// The people the policies named in one part (Approver, Reviewer); nothing when
+// there were none, so a role nobody approves shows no empty heading.
+function Participants({ label, people }) {
+  if (people.length === 0) return null;
+  return (
+    <Part label={label}>
+      <ul className={TEXT}>
+        {people.map((p, i) => {
+          const notes = participantNotes(p);
+          return (
+            <li key={`${p.policyId}-${participantLabel(p)}-${i}`}>
+              {participantLabel(p)}
+              {notes.length > 0 && <span className="text-xs text-gray-600 dark:text-gray-400"> ({notes.join(', ')})</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </Part>
   );
 }
 
@@ -73,7 +94,8 @@ function Resources({ resources }) {
 
 export default function RoleSnapshot({ snapshot }) {
   if (!snapshot?.type) return <p className={TEXT}>No snapshot was kept for this review.</p>;
-  const { role = {}, type, policies = [], owners = [], resources = [] } = snapshot;
+  const { role = {}, type, policies = [], owners = [], resources = [], participants = [] } = snapshot;
+  const inPart = (part) => participants.filter(p => p.participation === part);
   return (
     <div className="space-y-3" data-testid="role-snapshot">
       <Part label="Type">
@@ -84,6 +106,8 @@ export default function RoleSnapshot({ snapshot }) {
       </Part>
       <Part label="Held by"><p className={TEXT}>{role.holderCount === 1 ? '1 person' : `${role.holderCount ?? 0} people`}</p></Part>
       <Part label="Who answered for it"><Owners owners={owners} /></Part>
+      <Participants label="Who approved a request" people={inPart('Approver')} />
+      <Participants label="Who reviewed the holders" people={inPart('Reviewer')} />
       <Part label={`Policies (${policies.length})`}><Policies policies={policies} /></Part>
       <Part label={`Resources (${resources.length})`}><Resources resources={resources} /></Part>
     </div>

@@ -53,7 +53,7 @@ function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members 
     if (u === `${BASE}/assignments`) return members;
     if (u === `${BASE}/resource-roles`) return resources;
     if (u === `${BASE}/reviews` || u === `${BASE}/requests`) return [];
-    if (u === `${BASE}/composition-reviews`) return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }, { id: 'g2' }] }, latestSignOff: null };
+    if (u === `${BASE}/composition-reviews`) return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }, { id: 'g2' }], owners: [] }, latestReview: null, steps: ['ownership', 'lifecycle', 'contents'], verdicts: ['good', 'needsChange', 'notUnderstood'], canReview: true };
     if (u === BASE) return body;
     return undefined;
   });
@@ -172,19 +172,26 @@ describe('the business role page', () => {
     expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
     await user.click(screen.getByRole('tab', { name: /Requests & reviews/ }));
     const review = await screen.findByRole('region', { name: 'Composition review' });
-    expect(await within(review).findByText('Nobody has signed off what this role contains yet.')).toBeInTheDocument();
+    expect(await within(review).findByText('Nobody has reviewed this role yet.')).toBeInTheDocument();
     expect(await screen.findByText('Pending Requests')).toBeInTheDocument();
     expect(review.compareDocumentPosition(screen.getByText('Pending Requests')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('goes from the composition review to the Overview with Resources open', async () => {
+  it('reviews the role in a wizard that shows its lifecycle and its permissions as the tabs do', async () => {
     const { user } = mountPage();
     await user.click(await screen.findByRole('tab', { name: /Requests & reviews/ }));
-    await user.click(await screen.findByRole('button', { name: 'See the resources' }));
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: /Resources\s*2 resources/ })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: /People\s*13 people/ })).toHaveAttribute('aria-expanded', 'false');
-    expect(await screen.findByText('SG-Finance')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Review this role' }));
+    const wizard = await screen.findByTestId('review-wizard');
+    const good = () => user.click(within(wizard).getByRole('radio', { name: 'Good' }));
+    const next = () => user.click(within(wizard).getByRole('button', { name: 'Next' }));
+    await good();
+    await next();
+    expect(await within(wizard).findByText('Who approves')).toBeInTheDocument();
+    expect(within(wizard).getByText('Carla Cash')).toBeInTheDocument();
+    expect(within(wizard).getByText('Who reviews')).toBeInTheDocument();
+    await good();
+    await next();
+    expect(await within(wizard).findByText('SG-Finance')).toBeInTheDocument();
   });
 
   it('has no composition review while the experimental feature is off', async () => {

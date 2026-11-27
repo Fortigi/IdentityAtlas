@@ -24,8 +24,8 @@ export const GATED_ENDPOINTS = {
   'data.share':            { method: 'POST', path: '/api/matrix/shares', body: { name: 'matrix-test', filter: {} } },
   'data.write.tags':       { method: 'POST', path: '/api/tags', body: { name: 'matrix-test' } },
   'data.write.categories': { method: 'POST', path: '/api/categories', body: { name: 'matrix-test' } },
-  // A business role's composition sign-off; the ingested certification decisions stay crawler-auth.
-  'data.write.certifications': { method: 'POST', path: '/api/access-package/00000000-0000-0000-0000-000000000000/composition-reviews', body: { signedOff: true } },
+  // A business role's composition review; the ingested certification decisions stay crawler-auth.
+  'data.write.certifications': { method: 'POST', path: '/api/access-package/00000000-0000-0000-0000-000000000000/composition-reviews', body: { steps: [{ step: 'contents', verdict: 'good' }] } },
   'data.write.risk':       { method: 'PUT',  path: '/api/risk-scores/identity/1/override', body: { decision: 'accept' } },
   'data.write.identity':   { method: 'PUT',  path: '/api/identities/00000000-0000-0000-0000-000000000000/members/00000000-0000-0000-0000-000000000000/override', body: { action: 'confirmed' } },
   'admin.crawlers':        { method: 'GET',  path: '/api/admin/crawlers' },

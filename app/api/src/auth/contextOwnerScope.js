@@ -9,7 +9,8 @@
 // Reads, with two POSTs. The team matrix is a read whose filter is forced to their
 // team. A composition review is the one write: only on a business role they
 // answer for themselves (OWNED_ROLE_PATHS), and the route then asks the
-// relative permission that lets a role's owners sign off.
+// relative permission that lets a role's owners review it. The review's people
+// lookup (names to propose as an owner) is a read under the same condition.
 //
 // Paths are compared as middleware/auth.js guardPath() hands them over: the
 // full /api/... path, without the query string, lower-cased. Context ids are
@@ -59,10 +60,13 @@ export const CONTEXT_PATHS = [
 // owner answers for themselves (owner.access.ownedRoleIds), never one their team
 // merely holds. The verdict hands the role to the caller as `ownedRole`.
 export const OWNED_ROLE_PATHS = [new RegExp(`^/api/access-package/${UUID}/composition-reviews$`)];
+// The people a review can propose as an owner: read only, same condition.
+export const OWNED_ROLE_READ_PATHS = [new RegExp(`^/api/access-package/${UUID}/composition-reviews/people$`)];
 
 export function ownedRoleVerdict(method, path) {
   if (method !== 'GET' && method !== 'POST') return null;
-  for (const shape of OWNED_ROLE_PATHS) {
+  const shapes = method === 'GET' ? [...OWNED_ROLE_PATHS, ...OWNED_ROLE_READ_PATHS] : OWNED_ROLE_PATHS;
+  for (const shape of shapes) {
     const m = shape.exec(path);
     if (m) return { allow: false, ownedRole: m[1] };
   }

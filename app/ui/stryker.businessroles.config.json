@@ -25,6 +25,12 @@
     "src/components/businessRoles/RoleTypeCell.jsx",
     "src/components/HeldTick.jsx",
     "src/components/businessRoles/BusinessRoleCompositionReview.jsx",
+    "src/components/businessRoles/review/ReviewWizard.jsx",
+    "src/components/businessRoles/review/StepVerdict.jsx",
+    "src/components/businessRoles/review/OwnershipStep.jsx",
+    "src/components/businessRoles/review/HoldersPanel.jsx",
+    "src/components/businessRoles/review/ReviewRecord.jsx",
+    "src/components/businessRoles/review/reviewSteps.js",
     "src/components/businessRoles/RoleSnapshot.jsx",
     "src/components/businessRoles/OwnerRolePage.jsx",
     "src/components/businessRoles/accessModel.js",
@@ -37,6 +43,7 @@
   ],
   "tests": [
     "src/components/businessRoles/*.test.{js,jsx}",
+    "src/components/businessRoles/review/*.test.{js,jsx}",
     "src/components/contextOwner/ownerPortfolios.test.js"
   ],
   "thresholds": {

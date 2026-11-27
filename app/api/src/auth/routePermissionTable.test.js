@@ -12,7 +12,7 @@
 //     required; a caller holding just one listed permission gets in, for each.
 //   - ANY    → a caller holding a single permission that grants almost nothing
 //     by itself (data.write.certifications: only a business role's composition
-//     sign-off) gets in.
+//     review and its people lookup) gets in.
 //   - CRAWLER_KEY → a user token with every permission is refused 401.
 // So the table cannot be wider or narrower than the gate: an extra permission
 // fails its allow call, a missing one fails the "required" comparison.
@@ -61,9 +61,9 @@ describe('the route → permission table is complete', () => {
     expect(bad).toEqual([]);
   });
 
-  it('the probe permission gates nothing but the composition sign-off', () => {
+  it('the probe permission gates nothing but the composition review and its people lookup', () => {
     const gatedOn = Object.entries(ROUTE_PERMISSIONS).filter(([, v]) => Array.isArray(v) && v.includes(INERT)).map(([k]) => k);
-    expect(gatedOn).toEqual(['POST /access-package/:id/composition-reviews']);
+    expect(gatedOn).toEqual(['POST /access-package/:id/composition-reviews', 'GET /access-package/:id/composition-reviews/people']);
   });
 });
 

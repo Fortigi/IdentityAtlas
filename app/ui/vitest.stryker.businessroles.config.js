@@ -22,6 +22,7 @@ export default defineConfig({
   test: {
     include: [
       'src/components/businessRoles/*.test.{js,jsx}',
+      'src/components/businessRoles/review/*.test.{js,jsx}',
       'src/components/contextOwner/ownerPortfolios.test.js',
     ],
     exclude: ['**/node_modules/**'],

@@ -5,79 +5,58 @@ import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { formatDate } from '@ui/utils/formatters';
 import { changeText } from './accessModel';
 import RoleSnapshot from './RoleSnapshot';
+import ReviewWizard from './review/ReviewWizard';
+import ReviewRecord from './review/ReviewRecord';
+import { findingsCount, outcomeText } from './review/reviewSteps';
 
 // ─── Composition review of a business role ───────────────────────────────
-// Somebody reads what the role contains, writes notes and, when they agree,
-// signs it off. Every review is an object of its own, kept with who saved it,
-// when, and a snapshot of the role at that moment (RoleSnapshot), so the page
-// shows what was reviewed and what changed since the last sign-off.
+// Somebody walks through the role step by step — who answers for it, its
+// lifecycle, the permissions it contains — gives each step a verdict and signs
+// (review/ReviewWizard). Every review is an object of its own, kept with who
+// signed it, when, what they said per step and a snapshot of the role at that
+// moment (RoleSnapshot), so the page shows what was reviewed, what was found and
+// what changed since the last review. A review changes nothing on the role.
 // Data: /api/access-package/:id/composition-reviews (lib/businessRoleCompositionReview.js).
 
 const CARD = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800';
 const MUTED = 'text-xs text-gray-600 dark:text-gray-400';
+const CLEAN = 'border-green-200 bg-green-100 text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300';
+const FINDINGS = 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200';
 
 const whoOf = (review) => review.reviewedByName || review.reviewedBy;
-const resourcesWord = (n) => `${n} resource${n === 1 ? '' : 's'}`;
-const resourceCount = (snapshot) => snapshot?.resources?.length ?? 0;
 
-function SignOffStatus({ summary, onOpenResources }) {
-  const latest = summary.latestSignOff;
-  const changed = latest && changeText(latest.changesSince);
+function Outcome({ steps }) {
+  const clean = findingsCount(steps) === 0;
   return (
-    <section className={CARD} aria-label="Sign-off" data-testid="sign-off-status">
-      {latest ? (
-        <p className="text-sm text-gray-900 dark:text-gray-100">
-          <span className="mr-2 inline-block rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">Signed off</span>{' '}
-          by <span className="font-medium">{whoOf(latest)}</span> on {formatDate(latest.reviewedAt)}, when it contained {resourcesWord(resourceCount(latest.snapshot))}.
-        </p>
-      ) : (
-        <p className="text-sm text-gray-800 dark:text-gray-200">Nobody has signed off what this role contains yet.</p>
-      )}
-      {changed && <p role="alert" className="mt-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">{changed}</p>}
-      <p className={`${MUTED} mt-2`}>
-        It contains {resourcesWord(resourceCount(summary.current))} now.{' '}
-        <button type="button" onClick={onOpenResources} className="text-blue-700 underline underline-offset-2 hover:text-blue-600 dark:text-blue-300">See the resources</button>
-      </p>
-    </section>
+    <span data-testid="review-outcome" className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${clean ? CLEAN : FINDINGS}`}>
+      Reviewed: {outcomeText(steps)}
+    </span>
   );
 }
 
-function ReviewForm({ onSave }) {
-  const [notes, setNotes] = useState('');
-  const [signedOff, setSignedOff] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const empty = !signedOff && notes.trim() === '';
-
-  async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const problem = await onSave({ notes, signedOff });
-    setBusy(false);
-    if (problem) { setError(problem); return; }
-    setNotes('');
-    setSignedOff(false);
-  }
-
+function ReviewStatus({ summary, canWrite, onStart }) {
+  const latest = summary.latestReview;
+  const changed = latest && changeText(latest.changesSince);
   return (
-    <form onSubmit={submit} className={`${CARD} space-y-3`} aria-label="Your review">
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Notes</span>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} maxLength={10000}
-          placeholder="What you checked, what you agree with, and any questions"
-          className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-      </label>
-      <label className="flex items-start gap-2 text-sm text-gray-900 dark:text-gray-100">
-        <input type="checkbox" checked={signedOff} onChange={e => setSignedOff(e.target.checked)} className="mt-0.5 rounded" />
-        <span><span className="font-medium">Signed off</span> <span className={MUTED}>I have reviewed what this role contains and agree with it.</span></span>
-      </label>
-      {error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{error}</p>}
-      <button type="submit" disabled={empty || busy}
-        className="rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
-        {busy ? 'Saving…' : 'Save review'}
-      </button>
-    </form>
+    <section className={CARD} aria-label="Review status" data-testid="review-status">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {latest ? (
+          <p className="text-sm text-gray-900 dark:text-gray-100">
+            <span className="mr-2"><Outcome steps={latest.steps} /></span>
+            by <span className="font-medium">{whoOf(latest)}</span> on {formatDate(latest.reviewedAt)}.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-800 dark:text-gray-200">Nobody has reviewed this role yet.</p>
+        )}
+        {canWrite && (
+          <button type="button" onClick={onStart}
+            className="rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800">
+            Review this role
+          </button>
+        )}
+      </div>
+      {changed && <p role="alert" className="mt-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">{changed}</p>}
+    </section>
   );
 }
 
@@ -88,13 +67,19 @@ function History({ reviews }) {
       <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Reviews</h3>
       <ul className="divide-y divide-gray-100 dark:divide-gray-700">
         {reviews.map(r => (
-          <li key={r.id} className="py-2">
+          <li key={r.id} className="space-y-2 py-3 first:pt-0 last:pb-0" data-testid="review">
             <p className={MUTED}>
               <span className="font-medium text-gray-900 dark:text-gray-100">{whoOf(r)}</span> · {formatDate(r.reviewedAt)}
-              {r.signedOff && <span className="ml-2 rounded-full border border-green-200 bg-green-100 px-1.5 text-[11px] font-medium text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">Signed off</span>}
+              <span className="ml-2"><Outcome steps={r.steps} /></span>
             </p>
-            {r.notes && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{r.notes}</p>}
-            <details className="mt-1">
+            <ReviewRecord steps={r.steps} snapshot={r.snapshot} />
+            {r.notes && (
+              <div>
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">General comments</p>
+                <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{r.notes}</p>
+              </div>
+            )}
+            <details>
               <summary className="cursor-pointer text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">What was reviewed</summary>
               <div className="mt-2 rounded border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40"><RoleSnapshot snapshot={r.snapshot} /></div>
             </details>
@@ -105,17 +90,21 @@ function History({ reviews }) {
   );
 }
 
-export default function BusinessRoleCompositionReview({ roleId, onOpenTab, answersForRole = false }) {
+const EMPTY = { reviews: [], current: null, latestReview: null, steps: [], verdicts: [] };
+
+export default function BusinessRoleCompositionReview({ roleId, data, onOpenDetail, answersForRole = false }) {
   const { authFetch } = useAuth();
   // Read-only in a shared view, unless it is the owner's own page for a role they answer for.
   const readOnly = useIsSharedView() && !answersForRole;
   const url = `/api/access-package/${encodeURIComponent(roleId)}/composition-reviews`;
-  const { data, loading, error, reload } = useFetch(url, { authFetch });
+  const { data: loaded, loading, error, reload } = useFetch(url, { authFetch });
+  const [reviewing, setReviewing] = useState(false);
 
   async function save(body) {
     try {
       const r = await authFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) return (await r.json().catch(() => ({}))).error || `Could not save the review (HTTP ${r.status})`;
+      setReviewing(false);
       reload();
       return null;
     } catch (e) {
@@ -123,16 +112,22 @@ export default function BusinessRoleCompositionReview({ roleId, onOpenTab, answe
     }
   }
 
-  if (loading && !data) return <p className={MUTED}>Loading the reviews…</p>;
+  if (loading && !loaded) return <p className={MUTED}>Loading the reviews…</p>;
   if (error) return <p role="alert" className="text-sm text-red-700 dark:text-red-400">The reviews could not be loaded: {error.message}</p>;
-  const summary = data || { reviews: [], current: null, latestSignOff: null };
+  const summary = loaded || EMPTY;
+  const steps = summary.steps || [];
   // The API says who may review: the certification permission, or answering for
   // the role while that relative permission is on. Never in a shared view.
-  const canWrite = summary.canReview === true && !readOnly;
+  const canWrite = summary.canReview === true && !readOnly && steps.length > 0;
+  if (reviewing && canWrite) {
+    return (
+      <ReviewWizard roleId={roleId} data={data || {}} steps={steps} verdicts={summary.verdicts || []} current={summary.current}
+        onSave={save} onCancel={() => setReviewing(false)} onOpenDetail={onOpenDetail} />
+    );
+  }
   return (
     <div className="space-y-4" data-testid="composition-review">
-      <SignOffStatus summary={summary} onOpenResources={() => onOpenTab('resources')} />
-      {canWrite && <ReviewForm onSave={save} />}
+      <ReviewStatus summary={summary} canWrite={canWrite} onStart={() => setReviewing(true)} />
       <History reviews={summary.reviews} />
     </div>
   );

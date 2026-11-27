@@ -136,7 +136,7 @@ Accountable and one for Responsible:
   see only the unit itself.
 - **MCP** — they may also ask about the same things from an AI assistant
   through the [MCP server](../reference/mcp-server.md#context-owners).
-- **Composition review** — they may sign off a
+- **Composition review** — they may do a
   [composition review](../concepts/governance-model.md#reviewing-what-a-business-role-contains)
   of a business role they answer for, without the Certification decisions
   permission. This one does not need **Sign in & view**: it also applies to

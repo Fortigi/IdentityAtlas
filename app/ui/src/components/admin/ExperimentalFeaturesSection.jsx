@@ -163,15 +163,15 @@ function OrgKnowledgeCard({ features }) {
   );
 }
 
-// Composition review: someone signs off what a business role contains; each
-// review keeps a snapshot of the role as it was. Off hides the tab and the API
+// Composition review: someone reviews a business role step by step and signs;
+// each review keeps a snapshot of the role as it was. Off hides the tab and the API
 // refuses both endpoints; reviews already saved are kept.
 function CompositionReviewCard({ features }) {
   return (
     <FlagCard features={features} name="compositionReview" title="Composition review" what="composition review">
-      Adds <B>Composition review</B> to a business role: notes and a sign-off on what the role contains, each kept
-      with who wrote it, when, and a snapshot of the role at that moment — its type, policies, owners and resources —
-      so a later reader sees what was reviewed and what changed since. Signing off takes the permission to record
+      Adds <B>Composition review</B> to a business role: a wizard that asks a verdict on who answers for the role, its
+      lifecycle and its permissions, each review kept with who signed it, when, and a snapshot of the role at that
+      moment, so a later reader sees what was reviewed, what was found and what changed since. Reviewing takes the permission to record
       certification decisions, or answering for the role while that relative permission is on (Admin → Roles &amp;
       Permissions). Turning this off hides the tab; reviews already saved are kept.
     </FlagCard>

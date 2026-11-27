@@ -263,14 +263,25 @@ So a review is done **in the source system**, not here:
 
 ### Reviewing what a business role contains
 
-The one review Identity Atlas does hold itself is a **composition review**: at the top of a business role's **Requests & reviews** tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks **Signed off**. This reviews the role's *contents*, not who holds it, so it does not replace the access reviews above.
+The one review Identity Atlas does hold itself is a **composition review**: at the top of a business role's **Requests & reviews** tab, **Review this role** opens a wizard. It reviews the role itself — who answers for it, how people get and lose it, and what it contains — not each person who holds it, so it does not replace the access reviews above.
 
-- A review is an object of its own, linked to the role it reviews, and never changed after it is saved: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name), when, and a **snapshot** of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, its assignment policies with their rules, and the resources it contained (name, type, system).
-- The tab shows every review with **What was reviewed** (the snapshot, as it was), and for the latest sign-off what changed since: resources added or removed, a different type, or a changed policy or rule.
-- It lives in its own table, `BusinessRoleCompositionReviews` (migration 116), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
-- It is **experimental** and off by default: switch it on under **Admin → Experimental → Composition review**. While it is off the section is hidden and both endpoints answer 404; reviews already saved are kept.
-- Saving needs the **Certification decisions** permission (`data.write.certifications`) — or answering for the role (its **Accountable** or **Responsible**, through any of your accounts) where **Admin → Roles & Permissions → Relative permissions** ticks **Composition review** for their role (Accountable or Responsible) on the Business roles row. Anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`).
-- In the ontology it is `ia:CompositionReview` ([core model](../reference/core-model.md)).
+The wizard has one screen per step, and a last one to sign:
+
+1. **Who answers for it** — the Accountable and Responsible people as they are now.
+2. **Lifecycle** — how people get, keep and lose the role: the rules, who approves a request and who reviews the holders, each shown only where it applies. Who has the role now, and who lost it in the last 90 days, is one click away.
+3. **Permissions** — the resources the role contains.
+4. **Sign** — what you said per step, room for general comments, and the signature.
+
+On each step you choose **Good**, **Needs a change** or **I do not understand what I am reading**. A change needs saying what should change; "I do not understand" may carry your question. On the first step a change can instead name the people it should be, picked from the directory.
+
+- **A review is a review, not a change.** Proposed owners are stored with the review as a proposal; nothing on the role changes. Signing does not mean agreeing: a review whose steps are all good reads **no findings**, any other reads the number of findings.
+- A review is an object of its own, linked to the role, and never changed after it is signed: one verdict per step with its remark, the general comments, who signed (the signed-in user's e-mail or user name, and their display name), when, and a **snapshot** of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, who approved requests and reviewed the holders, its assignment policies with their rules, and the resources it contained (name, type, system).
+- The tab shows every review with what it said per step and **What was reviewed** (the snapshot, as it was), and for the latest review what changed since: resources added or removed, a different type, a changed policy or rule, or other people answering for it.
+- A review holds the steps that were asked. Today the wizard asks all three; the model allows a later campaign to ask only some.
+- It lives in its own tables, `BusinessRoleCompositionReviews` and `BusinessRoleCompositionReviewSteps` (migrations 116 and 120), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
+- It is **experimental** and off by default: switch it on under **Admin → Experimental → Composition review**. While it is off the section is hidden and its endpoints answer 404; reviews already saved are kept.
+- Reviewing needs the **Certification decisions** permission (`data.write.certifications`) — or answering for the role (its **Accountable** or **Responsible**, through any of your accounts) where **Admin → Roles & Permissions → Relative permissions** ticks **Composition review** for their role (Accountable or Responsible) on the Business roles row. Anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`). Whoever may review a role may also look up people to propose as its owner (`GET /api/access-package/:id/composition-reviews/people?search=`): name and e-mail of at most ten matching user accounts.
+- In the ontology it is `ia:CompositionReview` with its `ia:CompositionReviewStep`s ([core model](../reference/core-model.md)).
 
 ---
 

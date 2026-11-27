@@ -36,7 +36,7 @@ export const PERMISSIONS = Object.freeze({
   'data.write.identity':       { label: 'Identity link decisions',  group: 'Write',
     description: 'Confirm, reject, or clear account-linking decisions on an identity\'s linked accounts.' },
   'data.write.certifications': { label: 'Certification decisions', group: 'Write',
-    description: 'Review and sign off what a business role contains, with notes. Certification decisions from the source are still ingested by the crawlers.' },
+    description: 'Review a business role step by step (who answers for it, its lifecycle, what it contains) and sign the review. Certification decisions from the source are still ingested by the crawlers.' },
 
   'admin.crawlers':            { label: 'Crawler configuration',   group: 'Admin',
     description: 'Create / edit / run crawlers, manage crawler API keys and schedules.' },

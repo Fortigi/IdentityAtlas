@@ -5,7 +5,7 @@ import { mountRouterAs } from '../../../test-utils/routeTestKit.js';
 process.env.USE_SQL = 'true';
 
 vi.mock('../../db/connection.js');
-import { query, queryOne } from '../../db/connection.js';
+import { query, queryOne, tx } from '../../db/connection.js';
 
 // Everything that decides who may write, as switches the tests flip.
 // ownerReview: the grid gives both owner roles review (as the old switch did);
@@ -34,7 +34,7 @@ const app = mountRouterAs(router, () => caller.user);
 const ROLE = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const url = `/api/access-package/${ROLE}/composition-reviews`;
 const FIN = { id: 'g1', displayName: 'SG-Finance' };
-const picture = (resources) => ({ version: 1, type: { control: 'Manual' }, resources, policies: [] });
+const picture = (resources) => ({ version: 2, type: { control: 'Manual' }, resources, policies: [], owners: [] });
 const SIGNER = { email: 'ann@example.test', name: 'Ann Analyst', permissions: new Set(['data.write.certifications']) };
 const READER = { email: 'carla@example.test', name: 'Carla Cash', permissions: new Set(['data.read']) };
 
@@ -119,13 +119,15 @@ describe('reading', () => {
     expect(queryOne).not.toHaveBeenCalled();
   });
 
-  it('gives the reviews, the role now, what changed since the latest sign-off, and that the caller may review', async () => {
+  it('gives the reviews with what each found, the role now, what changed since the latest, and that the caller may review', async () => {
     roleExists();
-    query.mockResolvedValue({ rows: [{ id: 'r1', signedOff: true, notes: '', reviewedBy: 'bob@example.test', snapshot: picture([]) }] });
+    query.mockResolvedValue({ rows: [{ id: 'r1', notes: '', reviewedBy: 'bob@example.test', snapshot: picture([]), steps: [{ step: 'contents', verdict: 'needsChange', remark: 'x', proposal: null }] }] });
     const res = await request(app).get(url);
     expect(res.status).toBe(200);
     expect(res.body.current).toEqual(picture([FIN]));
-    expect(res.body.latestSignOff).toMatchObject({ id: 'r1', reviewedBy: 'bob@example.test', changesSince: { added: ['SG-Finance'], removed: [] } });
+    expect(res.body.reviews[0].outcome).toBe('findings');
+    expect(res.body.latestReview).toMatchObject({ id: 'r1', reviewedBy: 'bob@example.test', outcome: 'findings', changesSince: { added: ['SG-Finance'], removed: [] } });
+    expect(res.body.steps).toEqual(['ownership', 'lifecycle', 'contents']);
     expect(res.body.canReview).toBe(true);
   });
 
@@ -145,14 +147,27 @@ describe('reading', () => {
 });
 
 describe('saving', () => {
-  it('stores the notes, sign-off and snapshot under the signed-in user, not one from the body', async () => {
+  const GOOD = { steps: [{ step: 'contents', verdict: 'good' }] };
+  const written = () => query.mock.calls.filter(([sql]) => /INSERT INTO/.test(sql));
+  beforeEach(() => {
+    tx.mockReset();
+    tx.mockImplementation(async (fn) => fn({ query }));
+  });
+
+  it('stores the steps, notes and snapshot under the signed-in user, not one from the body', async () => {
     roleExists();
-    query.mockResolvedValue({ rows: [{ id: 'new', signedOff: true }] });
-    const res = await request(app).post(url).send({ notes: 'All four groups belong here.', signedOff: true, reviewedBy: 'mallory' });
+    query.mockResolvedValue({ rows: [{ id: 'new', notes: 'All four groups belong here.' }] });
+    const res = await request(app).post(url).send({
+      steps: [{ step: 'lifecycle', verdict: 'needsChange', remark: 'The approver left.' }, { step: 'ownership', verdict: 'good' }],
+      notes: 'All four groups belong here.', reviewedBy: 'mallory',
+    });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ id: 'new', signedOff: true });
-    const insert = query.mock.calls.find(([sql]) => /INSERT INTO/.test(sql))[1];
-    expect(insert).toEqual([ROLE, 'All four groups belong here.', true, 'ann@example.test', 'Ann Analyst', JSON.stringify(picture([FIN]))]);
+    expect(res.body).toMatchObject({ id: 'new', outcome: 'findings' });
+    expect(res.body.steps.map(s => [s.step, s.verdict])).toEqual([['ownership', 'good'], ['lifecycle', 'needsChange']]);
+    const [review, first, second] = written().map(([, params]) => params);
+    expect(review).toEqual([ROLE, 'All four groups belong here.', 'ann@example.test', 'Ann Analyst', JSON.stringify(picture([FIN]))]);
+    expect(first).toEqual(['new', 'ownership', 'good', '', null]);
+    expect(second).toEqual(['new', 'lifecycle', 'needsChange', 'The approver left.', null]);
   });
 
   it('lets the role\'s own Accountable save, under their own name', async () => {
@@ -160,9 +175,8 @@ describe('saving', () => {
     Object.assign(world, { ownerReview: true, owns: true });
     caller.user = READER;
     query.mockResolvedValue({ rows: [{ id: 'new' }] });
-    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(201);
-    const insert = query.mock.calls.find(([sql]) => /INSERT INTO/.test(sql))[1];
-    expect(insert.slice(3, 5)).toEqual(['carla@example.test', 'Carla Cash']);
+    expect((await request(app).post(url).send(GOOD)).status).toBe(201);
+    expect(written()[0][1].slice(2, 4)).toEqual(['carla@example.test', 'Carla Cash']);
   });
 
   it('stores "unknown" when the request carries no user (auth off)', async () => {
@@ -170,23 +184,30 @@ describe('saving', () => {
     world.auth = false;
     caller.user = undefined;
     query.mockResolvedValue({ rows: [{ id: 'new' }] });
-    await request(app).post(url).send({ signedOff: true });
-    const insert = query.mock.calls.find(([sql]) => /INSERT INTO/.test(sql))[1];
-    expect(insert.slice(3, 5)).toEqual(['unknown', null]);
+    await request(app).post(url).send(GOOD);
+    expect(written()[0][1].slice(2, 4)).toEqual(['unknown', null]);
   });
 
-  it('400 for a review that says nothing, before touching the database', async () => {
+  it('400 for a review without steps, before touching the database', async () => {
     roleExists();
-    const res = await request(app).post(url).send({ notes: ' ', signedOff: false });
+    const res = await request(app).post(url).send({ notes: 'looks fine' });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Write a note or sign off');
+    expect(res.body.error).toBe('A review judges at least one step');
     expect(query).not.toHaveBeenCalled();
+  });
+
+  it('400 for a change that does not say what, and nothing is written', async () => {
+    roleExists();
+    const res = await request(app).post(url).send({ steps: [{ step: 'contents', verdict: 'needsChange' }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/^Say what should change/);
+    expect(tx).not.toHaveBeenCalled();
   });
 
   it('403 naming the permission for someone who may not review, before the flag or the role are looked at', async () => {
     caller.user = READER;
     world.feature = false;
-    const res = await request(app).post(url).send({ signedOff: true });
+    const res = await request(app).post(url).send(GOOD);
     expect(res.status).toBe(403);
     expect(res.body.required).toEqual(['data.write.certifications']);
     expect(queryOne).not.toHaveBeenCalled();
@@ -194,7 +215,7 @@ describe('saving', () => {
 
   it('404 for someone who may review while the feature is off', async () => {
     world.feature = false;
-    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(404);
+    expect((await request(app).post(url).send(GOOD)).status).toBe(404);
   });
 
   it('500 when deciding who may review fails', async () => {
@@ -203,13 +224,58 @@ describe('saving', () => {
     const owners = await import('../../lib/businessRoleOwners.js');
     owners.answersForBusinessRole.mockRejectedValueOnce(new Error('down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(500);
+    expect((await request(app).post(url).send(GOOD)).status).toBe(500);
   });
 
   it('500 when the review cannot be saved', async () => {
     roleExists();
+    tx.mockRejectedValue(new Error('down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).post(url).send(GOOD)).status).toBe(500);
+  });
+});
+
+describe('looking up people to propose', () => {
+  const people = `${url}/people`;
+
+  it('gives the reviewer a short list of names for the term', async () => {
+    roleExists();
+    query.mockResolvedValue({ rows: [{ id: 'p-9', displayName: 'Carla Cash', userPrincipalName: 'carla@example.test' }] });
+    const res = await request(app).get(`${people}?search=car`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ data: [{ id: 'p-9', displayName: 'Carla Cash', userPrincipalName: 'carla@example.test' }] });
+    expect(query.mock.calls[0][1]).toEqual(['%car%']);
+  });
+
+  it('gives nobody for no term, or a term that is not text', async () => {
+    roleExists();
+    expect((await request(app).get(people)).body).toEqual({ data: [] });
+    expect((await request(app).get(`${people}?search[]=car&search[]=la`)).body).toEqual({ data: [] });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('is closed to someone who may not review this role, and open to its owner', async () => {
+    roleExists();
+    caller.user = READER;
+    query.mockResolvedValue({ rows: [] });
+    expect((await request(app).get(`${people}?search=car`)).status).toBe(403);
+    expect(query).not.toHaveBeenCalled();
+    Object.assign(world, { ownerReview: true, owns: true });
+    expect((await request(app).get(`${people}?search=car`)).status).toBe(200);
+  });
+
+  it('404 while the feature is off and for something that is not a business role', async () => {
+    world.feature = false;
+    expect((await request(app).get(`${people}?search=car`)).status).toBe(404);
+    world.feature = true;
+    queryOne.mockResolvedValue(null);
+    expect((await request(app).get(`${people}?search=car`)).status).toBe(404);
+  });
+
+  it('500 when the directory cannot be read', async () => {
+    roleExists();
     query.mockRejectedValue(new Error('down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(500);
+    expect((await request(app).get(`${people}?search=car`)).status).toBe(500);
   });
 });
