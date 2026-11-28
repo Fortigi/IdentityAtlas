@@ -4957,6 +4957,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#scheduled-reviews-of-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduled reviews of main
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scheduled reviews of main">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docs-audityml-monthly-docs-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        docs-audit.yml — monthly docs audit
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-runs-for-common-change-types" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6454,6 +6482,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#scheduled-reviews-of-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduled reviews of main
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scheduled reviews of main">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#docs-audityml-monthly-docs-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        docs-audit.yml — monthly docs audit
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-runs-for-common-change-types" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6898,6 +6954,44 @@
 <li><strong>Versioning:</strong> because the page and reports are committed into <code>docs/</code>, <code>mike</code> builds them into <strong>both</strong> doc versions — edge refreshes every merge, a release is frozen at its tag's numbers.</li>
 <li><strong>No loop:</strong> the commit only touches <code>docs/**</code>, so it re-triggers <code>docs.yml</code> (redeploy) but not <code>coverage.yml</code> (its paths filter is source/tests only) and not <code>docker-publish.yml</code> (gated on <code>bump-version</code>).</li>
 <li>A suite that fails or produces no coverage degrades gracefully — the page still renders, marking that suite as having no report.</li>
+</ul>
+<hr />
+<h2 id="scheduled-reviews-of-main">Scheduled reviews of main<a class="headerlink" href="#scheduled-reviews-of-main" title="Permanent link">&para;</a></h2>
+<p>These read <code>main</code> on a schedule (and on demand, Actions → Run workflow). They are not PR gates. A scheduled run that fails opens or updates one issue per workflow (<code>.github/scripts/scheduled_failure_issue.sh</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>When</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docs-review.yml</code></td>
+<td>Nightly, 03:00 UTC</td>
+<td>Reads the last 24 hours of commits against the docs and opens a draft PR with the edits it thinks are needed</td>
+</tr>
+<tr>
+<td><code>security-review.yml</code></td>
+<td>2nd of the month</td>
+<td>AI-assisted security review of the code and a running stack; see <a href="../../security/">Security testing</a></td>
+</tr>
+<tr>
+<td><code>docs-audit.yml</code></td>
+<td>9th of the month</td>
+<td>Reads <strong>all</strong> hand-written docs against the code and opens an issue per place a reader would be misled</td>
+</tr>
+</tbody>
+</table>
+<h3 id="docs-audityml-monthly-docs-audit">docs-audit.yml — monthly docs audit<a class="headerlink" href="#docs-audityml-monthly-docs-audit" title="Permanent link">&para;</a></h3>
+<p>The nightly review only sees one day's diff, so drift that builds up over several PRs (a table that became a context, a switch that became a grid) slips past it. The monthly audit reads every page in <code>docs/</code> (except <code>docs/coverage/</code> and the dated records listed in <code>EXEMPT</code> in <code>app/api/src/docs/docsJargon.js</code>), <code>README.md</code>, the <code>CLAUDE.md</code> guides and <code>ontology/core.ttl</code>, and checks what they say against the code. The checklist is <code>.github/docs-review/prompt.md</code>. Broken links and retired words are left to the <a href="#docs-guards">docs guards</a>.</p>
+<ul>
+<li><strong>Two jobs.</strong> The model runs with a read-only token and writes <code>findings.json</code>. A second job without the model validates it (<code>app/api/src/docsReview/</code>) and opens the issues. A finding needs a code reference as evidence and must point at a page that exists.</li>
+<li><strong>Issues.</strong> Each finding becomes an issue labelled <code>documentation</code>, <code>bug</code>, <code>ai-docs-review</code> and <code>needs-vouch</code>, assigned to the maintainers in <code>DOCS_AUDIT_ASSIGNEES</code>. Apply <code>dor-vouched</code> to hand it to the bug pipeline, fix it by hand, or close it.</li>
+<li><strong>No duplicates.</strong> Each issue carries a fingerprint marker. Next month's audit leaves a finding alone while its issue is open, never files it again once the issue is closed as <strong>not planned</strong>, and files it again (marked "came back") if it was closed as fixed but is still there.</li>
+<li><strong>At most 25 new issues per run.</strong> The rest wait for the next run, which finds them again.</li>
+<li><strong>Dry run.</strong> Run it by hand with <em>dry-run</em> ticked to see the plan in the job summary without opening issues.</li>
 </ul>
 <hr />
 <h2 id="what-runs-for-common-change-types">What runs for common change types<a class="headerlink" href="#what-runs-for-common-change-types" title="Permanent link">&para;</a></h2>
