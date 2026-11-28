@@ -3698,6 +3698,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#businessrolecompositionreviewsteps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BusinessRoleCompositionReviewSteps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#businessrolecompositionreviews" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3961,6 +3972,28 @@
     <span class="md-ellipsis">
       
         Propagation scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#review-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#review-verdict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review verdict
       
     </span>
   </a>
@@ -6733,6 +6766,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#businessrolecompositionreviewsteps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BusinessRoleCompositionReviewSteps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#businessrolecompositionreviews" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7003,6 +7047,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#review-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#review-verdict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review verdict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#subject-match" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7101,7 +7167,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>3.1.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>4.0.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -9265,8 +9331,59 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </table>
 <h2 id="knowledge-tables">Knowledge tables<a class="headerlink" href="#knowledge-tables" title="Permanent link">&para;</a></h2>
 <p>What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.</p>
+<h3 id="businessrolecompositionreviewsteps">BusinessRoleCompositionReviewSteps<a class="headerlink" href="#businessrolecompositionreviewsteps" title="Permanent link">&para;</a></h3>
+<p><code>ia:CompositionReviewStep</code> · Knowledge table · The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, or the permissions it contains. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). Never changed after it is saved, and deleted with its review.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>proposal</code></td>
+<td><code>ia:proposal</code></td>
+<td>jsonb</td>
+<td></td>
+<td>Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId | identityId, displayName } | null, responsible: [{ principalId | identityId, displayName }] }. A proposal: the review changes nobody.</td>
+</tr>
+<tr>
+<td><code>remark</code></td>
+<td><code>ia:remark</code></td>
+<td>text</td>
+<td></td>
+<td>The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good.</td>
+</tr>
+<tr>
+<td><code>reviewId</code></td>
+<td><code>ia:reviewId</code></td>
+<td>uuid</td>
+<td>→ BusinessRoleCompositionReviews</td>
+<td>The review this verdict is part of.</td>
+</tr>
+<tr>
+<td><code>step</code></td>
+<td><code>ia:step</code></td>
+<td>text</td>
+<td><code>ownership</code>, <code>lifecycle</code>, <code>contents</code></td>
+<td>Which part of the role was judged.</td>
+</tr>
+<tr>
+<td><code>verdict</code></td>
+<td><code>ia:verdict</code></td>
+<td>text</td>
+<td><code>good</code>, <code>needsChange</code>, <code>notUnderstood</code></td>
+<td>What the reviewer said about it.</td>
+</tr>
+</tbody>
+</table>
 <h3 id="businessrolecompositionreviews">BusinessRoleCompositionReviews<a class="headerlink" href="#businessrolecompositionreviews" title="Permanent link">&para;</a></h3>
-<p><code>ia:CompositionReview</code> · Knowledge table · One review of what a business role (resourceId, an ia:Resource of resourceType BusinessRole) contains: notes, a sign-off, or both — never neither — by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt), with a snapshot of the role as it was then: its type and ways in and out, its holder count, who answered for it, its policies with their rules and the resources it contained. Reviews are only added, never changed: the newest sign-off is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing.</p>
+<p><code>ia:CompositionReview</code> · Knowledge table · One review of a business role (resourceId, an ia:Resource of resourceType BusinessRole), signed by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt): a verdict per step (ia:CompositionReviewStep), closing notes, and a snapshot of the role as it was then — its type and ways in and out, its holder count, who answered for it, who approved requests and reviewed the holders, its policies with their rules and the resources it contained. Signing is not agreeing: a review whose steps are all good found nothing, any other found something. Reviews are only added, never changed: the newest is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing.</p>
 <p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
 <table>
 <thead>
@@ -9284,7 +9401,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:notes</code></td>
 <td>text</td>
 <td></td>
-<td>What the reviewer wrote. Empty only when the review is a sign-off.</td>
+<td>The reviewer's closing comments on the whole role. May be empty.</td>
 </tr>
 <tr>
 <td><code>resourceId</code></td>
@@ -9315,18 +9432,11 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>That user's display name when they saved it.</td>
 </tr>
 <tr>
-<td><code>signedOff</code></td>
-<td><code>ia:signedOff</code></td>
-<td>boolean</td>
-<td></td>
-<td>Whether the reviewer signed off what the role contained, as its snapshot shows.</td>
-</tr>
-<tr>
 <td><code>snapshot</code></td>
 <td><code>ia:snapshot</code></td>
 <td>jsonb</td>
 <td></td>
-<td>The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom}].</td>
+<td>The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom, principalId, identityId}], participants [{policyId, participation, subjectType, displayName, principalId, groupId, managerLevel, isFallback, stage}].</td>
 </tr>
 </tbody>
 </table>
@@ -10392,6 +10502,62 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>selfAndDescendants</code></td>
 <td><code>ia:PropagationScope_selfAndDescendants</code></td>
 <td>At the assigned resource and everything below it (the default).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="review-step">Review step<a class="headerlink" href="#review-step" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewStep</code> — A part of a business role that a composition review judges. Used by <code>BusinessRoleCompositionReviewSteps.step</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Individual</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ownership</code></td>
+<td><code>ia:ReviewStep_ownership</code></td>
+<td>Who is Accountable and Responsible for the role.</td>
+</tr>
+<tr>
+<td><code>lifecycle</code></td>
+<td><code>ia:ReviewStep_lifecycle</code></td>
+<td>How people get, keep and lose the role: its rules, who approves a request and who reviews the holders.</td>
+</tr>
+<tr>
+<td><code>contents</code></td>
+<td><code>ia:ReviewStep_contents</code></td>
+<td>The permissions the role contains.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="review-verdict">Review verdict<a class="headerlink" href="#review-verdict" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewVerdict</code> — What a reviewer says about one step of a composition review. Used by <code>BusinessRoleCompositionReviewSteps.verdict</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Individual</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>good</code></td>
+<td><code>ia:ReviewVerdict_good</code></td>
+<td>Nothing to change.</td>
+</tr>
+<tr>
+<td><code>needsChange</code></td>
+<td><code>ia:ReviewVerdict_needsChange</code></td>
+<td>Something should change: the remark says what, or the proposal says who.</td>
+</tr>
+<tr>
+<td><code>notUnderstood</code></td>
+<td><code>ia:ReviewVerdict_notUnderstood</code></td>
+<td>The reviewer cannot judge what they read; the remark may hold their question.</td>
 </tr>
 </tbody>
 </table>

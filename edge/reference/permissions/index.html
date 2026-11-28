@@ -6548,7 +6548,7 @@
 <tr>
 <td><code>data.write.certifications</code></td>
 <td>Certification decisions</td>
-<td>Review and sign off what a business role contains, with notes (<code>POST /api/access-package/:id/composition-reviews</code>, the <strong>Composition review</strong> section on Requests &amp; reviews, experimental). A role's own Accountable or Responsible may do this without the permission where the relative-permission grid ticks <strong>Composition review</strong> for their role (Accountable or Responsible). Certification decisions from the source are still ingested by the crawlers (<code>POST /api/ingest/governance/certifications</code>).</td>
+<td>Review a business role step by step and sign the review (<code>POST /api/access-package/:id/composition-reviews</code>, and its people lookup <code>GET …/composition-reviews/people</code>; the <strong>Composition review</strong> section on Requests &amp; reviews, experimental). A role's own Accountable or Responsible may do this without the permission where the relative-permission grid ticks <strong>Composition review</strong> for their role (Accountable or Responsible). Certification decisions from the source are still ingested by the crawlers (<code>POST /api/ingest/governance/certifications</code>).</td>
 </tr>
 </tbody>
 </table>

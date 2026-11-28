@@ -7039,9 +7039,10 @@ context assistant and organisation knowledge use the model that runs inside the 
 <strong>Custom reports</strong> while that switch is on.</p>
 <hr />
 <h2 id="composition-review">Composition review<a class="headerlink" href="#composition-review" title="Permanent link">&para;</a></h2>
-<p>Somebody signs off what a business role contains, with notes; each review is kept with who
-saved it, when, and a snapshot of the role at that moment, so a later reader sees what was
-reviewed and what changed since. See
+<p>Somebody reviews a business role in a wizard — who answers for it, its lifecycle, the
+permissions it contains — gives each step a verdict and signs; each review is kept with who
+signed it, when, and a snapshot of the role at that moment, so a later reader sees what was
+reviewed, what was found and what changed since. See
 <a href="../../concepts/governance-model/#reviewing-what-a-business-role-contains">Reviewing what a business role contains</a>.
 It is experimental because it is new.</p>
 <p>Environment variable: <code>FEATURE_COMPOSITION_REVIEW=true</code>.</p>
@@ -7050,7 +7051,7 @@ It is experimental because it is new.</p>
 Certification decisions permission, or answering for the role where the relative-permission
 grid ticks <strong>Composition review</strong> for that role (Accountable or Responsible).</p>
 <p><strong>Off</strong> — the tab is hidden and <code>GET</code> / <code>POST /api/access-package/{id}/composition-reviews</code>
-answer <code>404</code>.</p>
+and <code>GET …/composition-reviews/people</code> answer <code>404</code>.</p>
 <h3 id="what-the-switch-does-not-do_7">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_7" title="Permanent link">&para;</a></h3>
 <p>Turning it off <strong>deletes nothing</strong>: every review and its snapshot is kept, and turning it back
 on shows them again.</p>
