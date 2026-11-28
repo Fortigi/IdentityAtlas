@@ -178,6 +178,28 @@ The coverage workflow publishes line/branch/method coverage for all three suites
 
 ---
 
+## Scheduled reviews of main
+
+These read `main` on a schedule (and on demand, Actions → Run workflow). They are not PR gates. A scheduled run that fails opens or updates one issue per workflow (`.github/scripts/scheduled_failure_issue.sh`).
+
+| Workflow | When | What it does |
+|---|---|---|
+| `docs-review.yml` | Nightly, 03:00 UTC | Reads the last 24 hours of commits against the docs and opens a draft PR with the edits it thinks are needed |
+| `security-review.yml` | 2nd of the month | AI-assisted security review of the code and a running stack; see [Security testing](../security/index.md) |
+| `docs-audit.yml` | 9th of the month | Reads **all** hand-written docs against the code and opens an issue per place a reader would be misled |
+
+### docs-audit.yml — monthly docs audit
+
+The nightly review only sees one day's diff, so drift that builds up over several PRs (a table that became a context, a switch that became a grid) slips past it. The monthly audit reads every page in `docs/` (except `docs/coverage/` and the dated records listed in `EXEMPT` in `app/api/src/docs/docsJargon.js`), `README.md`, the `CLAUDE.md` guides and `ontology/core.ttl`, and checks what they say against the code. The checklist is `.github/docs-review/prompt.md`. Broken links and retired words are left to the [docs guards](#docs-guards).
+
+- **Two jobs.** The model runs with a read-only token and writes `findings.json`. A second job without the model validates it (`app/api/src/docsReview/`) and opens the issues. A finding needs a code reference as evidence and must point at a page that exists.
+- **Issues.** Each finding becomes an issue labelled `documentation`, `bug`, `ai-docs-review` and `needs-vouch`, assigned to the maintainers in `DOCS_AUDIT_ASSIGNEES`. Apply `dor-vouched` to hand it to the bug pipeline, fix it by hand, or close it.
+- **No duplicates.** Each issue carries a fingerprint marker. Next month's audit leaves a finding alone while its issue is open, never files it again once the issue is closed as **not planned**, and files it again (marked "came back") if it was closed as fixed but is still there.
+- **At most 25 new issues per run.** The rest wait for the next run, which finds them again.
+- **Dry run.** Run it by hand with *dry-run* ticked to see the plan in the job summary without opening issues.
+
+---
+
 ## What runs for common change types
 
 | What changed | PS lint | Pester | API tests | UI tests | Crawler tests | E2E | Load soak |
