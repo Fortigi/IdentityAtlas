@@ -5,6 +5,8 @@
 // passes validateReport(): a malformed or padded file is rejected as a whole, so
 // a confused or manipulated review cannot file issues with arbitrary content.
 
+import { FINGERPRINT, duplicateProblems, textProblems } from './reportFile.js';
+
 export const SEVERITIES = ['Critical', 'High', 'Medium', 'Low', 'Informational'];
 
 // Medium and above are filed as private security advisories, never as public
@@ -26,7 +28,6 @@ export const OWASP_TOP10 = {
 };
 
 const REVIEW_ID = /^\d{4}-(0[1-9]|1[0-2])$/;
-const FINGERPRINT = /^[a-z0-9][a-z0-9._:/-]{5,119}$/;
 const COMMIT = /^[0-9a-f]{7,40}$/;
 const MAX_FINDINGS = 200;
 
@@ -41,20 +42,10 @@ const TEXT_FIELDS = [
   ['evidence', 8000],
 ];
 
-function textProblems(f, where) {
-  const problems = [];
-  for (const [field, max] of TEXT_FIELDS) {
-    const v = f[field];
-    if (typeof v !== 'string' || v.trim() === '') problems.push(`${where}: ${field} is required`);
-    else if (v.length > max) problems.push(`${where}: ${field} is longer than ${max} characters`);
-  }
-  return problems;
-}
-
 function findingProblems(f, i) {
   const where = `findings[${i}]`;
   if (!f || typeof f !== 'object') return [`${where} is not an object`];
-  const problems = textProblems(f, where);
+  const problems = textProblems(f, where, TEXT_FIELDS);
   if (!SEVERITIES.includes(f.severity)) problems.push(`${where}: severity must be one of ${SEVERITIES.join(', ')}`);
   if (!(f.owasp in OWASP_TOP10)) problems.push(`${where}: owasp must be one of A01..A10`);
   if (typeof f.fingerprint !== 'string' || !FINGERPRINT.test(f.fingerprint)) {
@@ -89,16 +80,6 @@ function coverageProblems(coverage) {
     if (typeof c?.notes !== 'string' || c.notes.length > MAX_COVERAGE_NOTES) {
       problems.push(`coverage ${c?.category}: notes must be text of at most ${MAX_COVERAGE_NOTES} characters`);
     }
-  }
-  return problems;
-}
-
-function duplicateProblems(findings) {
-  const seen = new Set();
-  const problems = [];
-  for (const f of findings) {
-    if (seen.has(f.fingerprint)) problems.push(`fingerprint ${f.fingerprint} appears twice`);
-    seen.add(f.fingerprint);
   }
   return problems;
 }

@@ -1,14 +1,17 @@
-// Minimal GitHub REST/GraphQL client for filings.js. Only what the monthly
-// security review needs: list and create issues and draft security advisories,
-// and add an issue to a project board. `fetchImpl` is injectable for tests.
+// Minimal GitHub REST/GraphQL client for the monthly reviews: this directory's
+// filings.js and the docs audit's (docsReview/cli.js). Only what they need: list
+// issues carrying the review's own label, create issues and draft security
+// advisories, and add an issue to a project board. `fetchImpl` is injectable for tests.
 
 const API = 'https://api.github.com';
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 
-export function createGitHubClient({ token, repo, projectId, fetchImpl = fetch }) {
+export function createGitHubClient({ token, repo, projectId, issueLabel = 'ai-security-review', fetchImpl = fetch }) {
   if (!token) throw new Error('A GitHub token is required');
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo ?? '')) throw new Error('repo must look like owner/name');
+  // It goes into the query string as is.
+  if (!/^[a-z0-9-]+$/.test(issueLabel)) throw new Error('issueLabel must be lowercase letters, digits and hyphens');
 
   async function call(method, path, body) {
     const res = await fetchImpl(`${API}${path}`, {
@@ -37,7 +40,7 @@ export function createGitHubClient({ token, repo, projectId, fetchImpl = fetch }
   }
 
   const client = {
-    listIssues: () => listAll(`/repos/${repo}/issues?state=all&labels=ai-security-review`),
+    listIssues: () => listAll(`/repos/${repo}/issues?state=all&labels=${issueLabel}`),
     listAdvisories: () => listAll(`/repos/${repo}/security-advisories`),
     createIssue: issue => call('POST', `/repos/${repo}/issues`, issue),
     createAdvisory: adv => call('POST', `/repos/${repo}/security-advisories`, adv),
