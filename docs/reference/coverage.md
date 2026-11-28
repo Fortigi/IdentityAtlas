@@ -6,8 +6,8 @@ Test quality across the project's automated suites — line/branch/method covera
 
 | Suite | Line | Branch | Method | Cyclomatic | Cognitive | Mutation | Lines covered |
 |-------|------|--------|--------|------------|-----------|----------|---------------|
-| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 96.2% | 90.2% | 88.4% | 3.1 / 20 | 1.7 / 15 | 81.0% | 22,155 / 23,012 |
-| [UI (React / Vitest)](../coverage/ui/index.html) | 92.5% | 84.3% | 81.2% | 2.6 / 28 | 0.9 / 15 | 79.9% | 13,121 / 14,170 |
+| [API (Node / Vitest — unit + contract)](../coverage/api/index.html) | 96.2% | 90.2% | 88.4% | 3.1 / 20 | 1.7 / 15 | 81.0% | 22,273 / 23,130 |
+| [UI (React / Vitest)](../coverage/ui/index.html) | 92.6% | 84.5% | 81.3% | 2.6 / 28 | 0.9 / 15 | 79.9% | 13,255 / 14,306 |
 | [PowerShell (Pester)](../coverage/powershell/index.html) | 92.2% | — | 97.3% | 3.8 / 15 | 3.7 / 15 | 79.1% | 8,099 / 8,782 |
 
 **Cyclomatic** / **Cognitive** are _average / max_ per unit (each function, and for PowerShell each script/module body too): PowerShell via [PSComplexity](https://github.com/Fortigi/PSComplexity), JS/TS via ESLint's `complexity` rule + [eslint-plugin-sonarjs](https://github.com/SonarSource/eslint-plugin-sonarjs). **Mutation** is the share of injected faults the tests catch via [PSMutant](https://github.com/Fortigi/PSMutant), PowerShell-only today. A suite without a given signal shows —.
@@ -18,13 +18,13 @@ Every figure above is scoped to what its tool actually measured. The notes below
 
 ### API (Node / Vitest — unit + contract)
 
-- **Mutation is scoped.** Mutation testing covers 228 file(s) of 503 — 44% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 212 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **Mutation is scoped.** Mutation testing covers 229 file(s) of 504 — 44% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 212 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
 - **method coverage (88.4%) sits below line coverage (96.2%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 
 ### UI (React / Vitest)
 
-- **Mutation is scoped.** Mutation testing covers 156 file(s) of 521 — 30% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 136 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
-- **method coverage (81.2%) sits below line coverage (92.5%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
+- **Mutation is scoped.** Mutation testing covers 162 file(s) of 527 — 31% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. **The score itself is older than that scope:** it was measured over 136 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.
+- **method coverage (81.3%) sits below line coverage (92.6%)** — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.
 - **The most complex code is the least branch-covered.** `app/ui/src/components/RollupMatrixView.jsx` (Function 'RollupMatrixView', cyclomatic 28, 83.9% branch), `app/ui/src/components/RunDetailPage.jsx` (Function 'RunDetailPage', cyclomatic 20, 76.3% branch) — each below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.
 
 ### PowerShell (Pester)
@@ -40,4 +40,4 @@ Each suite links to a full per-file, line-by-line HTML report:
 - [UI (React / Vitest)](../coverage/ui/index.html)
 - [PowerShell (Pester)](../coverage/powershell/index.html)
 
-_Generated 2026-11-28 12:05 UTC from commit `140df373`._
+_Generated 2026-11-28 12:13 UTC from commit `2c2a9904`._
