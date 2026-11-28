@@ -32,6 +32,14 @@ describe('createGitHubClient', () => {
     expect(calls[0].headers['Content-Type']).toBeUndefined();
   });
 
+  it('lists issues by another review\'s label when given one, and refuses a label that would break the query', async () => {
+    const { calls, fetchImpl } = fakeFetch([{ json: page(2) }]);
+    await createGitHubClient({ token: 't', repo: 'o/r', issueLabel: 'ai-docs-review', fetchImpl }).listIssues();
+    expect(calls[0].url).toBe('https://api.github.com/repos/o/r/issues?state=all&labels=ai-docs-review&per_page=100&page=1');
+    expect(() => createGitHubClient({ token: 't', repo: 'o/r', issueLabel: 'docs&state=open' }))
+      .toThrow('issueLabel must be lowercase letters, digits and hyphens');
+  });
+
   it('stops after 20 pages even when every page is full', async () => {
     const { calls, fetchImpl } = fakeFetch(Array.from({ length: 25 }, () => ({ json: page(100) })));
     const advisories = await createGitHubClient({ token: 't', repo: 'o/r', fetchImpl }).listAdvisories();

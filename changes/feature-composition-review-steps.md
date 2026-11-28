@@ -1,7 +1,0 @@
-- Composition review (experimental) is now a wizard: **Review this role** walks through who answers for the role, its lifecycle and its permissions, and ends with a screen to sign
-- Each step gets a verdict: Good, Needs a change (say what should change) or I do not understand what I am reading (with room for your question)
-- On the first step you can propose other Accountable and Responsible people by picking them from the directory; this is stored as a proposal and changes nothing on the role
-- The lifecycle step shows who approves a request and who reviews the holders where that applies, with who has the role now and who lost it in the last 90 days one click away
-- A review with findings is still a finished review: the role shows "Reviewed: no findings" or the number of findings, and every review lists what was said per step
-- A review now also records who approved requests and reviewed the holders at that moment, and the page says when other people have come to answer for the role since the last review
-- Breaking for this experimental feature: reviews saved as notes with a Signed off tick are removed on upgrade
