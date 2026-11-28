@@ -6550,6 +6550,11 @@
 <td>Certification decisions</td>
 <td>Review a business role step by step and sign the review (<code>POST /api/access-package/:id/composition-reviews</code>, and its people lookup <code>GET …/composition-reviews/people</code>; the <strong>Composition review</strong> section on Requests &amp; reviews, experimental). A role's own Accountable or Responsible may do this without the permission where the relative-permission grid ticks <strong>Composition review</strong> for their role (Accountable or Responsible). Certification decisions from the source are still ingested by the crawlers (<code>POST /api/ingest/governance/certifications</code>).</td>
 </tr>
+<tr>
+<td><code>data.write.review-campaigns</code></td>
+<td>Review campaigns</td>
+<td>Set up campaigns that ask the Accountable of business roles to review them, and follow their progress (<code>/api/review-campaigns</code>, the <strong>Reviews</strong> tab; experimental, part of Composition review). Doing a review that a campaign asks of you needs no permission.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h3>

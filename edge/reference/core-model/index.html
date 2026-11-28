@@ -3763,6 +3763,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#reviewcampaignrequests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaignRequests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewcampaignrounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaignRounds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewcampaignscopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaignScopes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewcampaigns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaigns
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3972,6 +4016,17 @@
     <span class="md-ellipsis">
       
         Propagation scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#review-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review kind
       
     </span>
   </a>
@@ -6831,6 +6886,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#reviewcampaignrequests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaignRequests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewcampaignrounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaignRounds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewcampaignscopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaignScopes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reviewcampaigns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ReviewCampaigns
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -7047,6 +7146,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#review-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review kind
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#review-step" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7167,7 +7277,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>4.0.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>4.1.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -9169,7 +9279,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:resourceId</code></td>
 <td>uuid</td>
 <td>→ Resources</td>
-<td>The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: <code>resourceExternalId</code>.</td>
+<td>The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: <code>resourceExternalId</code>.</td>
 </tr>
 <tr>
 <td><code>resourceType</code></td>
@@ -9364,7 +9474,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:reviewId</code></td>
 <td>uuid</td>
 <td>→ BusinessRoleCompositionReviews</td>
-<td>The review this verdict is part of.</td>
+<td>The review this verdict is part of. On a campaign request: the review that answered it, empty while it waits.</td>
 </tr>
 <tr>
 <td><code>step</code></td>
@@ -9408,7 +9518,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:resourceId</code></td>
 <td>uuid</td>
 <td>→ Resources</td>
-<td>The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: <code>resourceExternalId</code>.</td>
+<td>The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: <code>resourceExternalId</code>.</td>
 </tr>
 <tr>
 <td><code>reviewedAt</code></td>
@@ -9806,7 +9916,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:createdBy</code></td>
 <td>text</td>
 <td></td>
-<td>Who uploaded it.</td>
+<td>Who uploaded it. On a review campaign: who set it up.</td>
 </tr>
 <tr>
 <td><code>extractionMessage</code></td>
@@ -9942,6 +10052,210 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>text</td>
 <td></td>
 <td>The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reviewcampaignrequests">ReviewCampaignRequests<a class="headerlink" href="#reviewcampaignrequests" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewCampaignRequest</code> · Knowledge table · One business role (resourceId) to review in one round (roundId), at most once per round. Asked of whoever is Accountable for the role at the moment of looking; a role with nobody Accountable has nobody to ask. Answered by the composition review of that person (reviewId) that judged every step the campaign asks; while reviewId is empty it waits, or is late once its round is due. Deleted with the role.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resourceId</code></td>
+<td><code>ia:resourceId</code></td>
+<td>uuid</td>
+<td>→ Resources</td>
+<td>The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: <code>resourceExternalId</code>.</td>
+</tr>
+<tr>
+<td><code>reviewId</code></td>
+<td><code>ia:reviewId</code></td>
+<td>uuid</td>
+<td>→ BusinessRoleCompositionReviews</td>
+<td>The review this verdict is part of. On a campaign request: the review that answered it, empty while it waits.</td>
+</tr>
+<tr>
+<td><code>roundId</code></td>
+<td><code>ia:roundId</code></td>
+<td>uuid</td>
+<td>→ ReviewCampaignRounds</td>
+<td>The round that asked.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reviewcampaignrounds">ReviewCampaignRounds<a class="headerlink" href="#reviewcampaignrounds" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewCampaignRound</code> · Knowledge table · One time a review campaign (campaignId) asked: its number, when it started (startsAt) and when it is due (dueAt, the end of its last day). Made the first time somebody looks on or after its first day; rounds nobody looked at are skipped. Only the newest round of a campaign is open.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>campaignId</code></td>
+<td><code>ia:campaignId</code></td>
+<td>uuid</td>
+<td>→ ReviewCampaigns</td>
+<td>The campaign this belongs to.</td>
+</tr>
+<tr>
+<td><code>dueAt</code></td>
+<td><code>ia:dueAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>When the round is due: the end of its last day.</td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td><code>ia:number</code></td>
+<td>integer</td>
+<td></td>
+<td>Which round of its campaign this is, from 1. A campaign that asks once has only round 1.</td>
+</tr>
+<tr>
+<td><code>startsAt</code></td>
+<td><code>ia:startsAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>The first day of the round.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reviewcampaignscopes">ReviewCampaignScopes<a class="headerlink" href="#reviewcampaignscopes" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewCampaignScope</code> · Knowledge table · One thing a review campaign (campaignId) is about: a business role by itself (resourceId), or every business role in a role portfolio (contextId, a Catalog context) — exactly one of the two. A portfolio is read again when each round starts, so a role added to it joins the next round. Deleted with the role or the portfolio.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>campaignId</code></td>
+<td><code>ia:campaignId</code></td>
+<td>uuid</td>
+<td>→ ReviewCampaigns</td>
+<td>The campaign this belongs to.</td>
+</tr>
+<tr>
+<td><code>contextId</code></td>
+<td><code>ia:contextId</code></td>
+<td>uuid</td>
+<td>→ Contexts</td>
+<td>The context. Ingest alias: <code>contextExternalId</code>.</td>
+</tr>
+<tr>
+<td><code>resourceId</code></td>
+<td><code>ia:resourceId</code></td>
+<td>uuid</td>
+<td>→ Resources</td>
+<td>The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: <code>resourceExternalId</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reviewcampaigns">ReviewCampaigns<a class="headerlink" href="#reviewcampaigns" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewCampaign</code> · Knowledge table · A standing request to review business roles: which steps of a composition review (steps), asked of whom (askedRoles: today only the Accountable), from which day (startsOn), once or again every intervalMonths months, with dueDays days per round. Its scope is its ia:ReviewCampaignScope rows. Ended campaigns (endedAt) ask nobody any more. A campaign grants and removes nothing.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>askedRoles</code></td>
+<td><code>ia:askedRoles</code></td>
+<td>jsonb</td>
+<td></td>
+<td>Whose review is asked, a JSON array of owner roles. Today always ["Accountable"].</td>
+</tr>
+<tr>
+<td><code>createdAt</code></td>
+<td><code>ia:createdAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>When the context row was created.</td>
+</tr>
+<tr>
+<td><code>createdBy</code></td>
+<td><code>ia:createdBy</code></td>
+<td>text</td>
+<td></td>
+<td>Who uploaded it. On a review campaign: who set it up.</td>
+</tr>
+<tr>
+<td><code>dueDays</code></td>
+<td><code>ia:dueDays</code></td>
+<td>integer</td>
+<td></td>
+<td>How many days a round has, 1 to 365.</td>
+</tr>
+<tr>
+<td><code>endedAt</code></td>
+<td><code>ia:endedAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>When the campaign was stopped. Empty while it runs.</td>
+</tr>
+<tr>
+<td><code>intervalMonths</code></td>
+<td><code>ia:intervalMonths</code></td>
+<td>integer</td>
+<td></td>
+<td>After how many months it asks again: 1, 3, 6 or 12. Empty: it asks once.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>ia:name</code></td>
+<td>text</td>
+<td></td>
+<td>What the campaign is called.</td>
+</tr>
+<tr>
+<td><code>reviewKind</code></td>
+<td><code>ia:reviewKind</code></td>
+<td>text</td>
+<td><code>BusinessRoleComposition</code></td>
+<td>What the campaign reviews.</td>
+</tr>
+<tr>
+<td><code>startsOn</code></td>
+<td><code>ia:startsOn</code></td>
+<td>date</td>
+<td></td>
+<td>The first day of the first round.</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td><code>ia:steps</code></td>
+<td>jsonb</td>
+<td></td>
+<td>The steps of the review the campaign asks, a JSON array of ia:ReviewStep values, at least one.</td>
 </tr>
 </tbody>
 </table>
@@ -10502,6 +10816,24 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>selfAndDescendants</code></td>
 <td><code>ia:PropagationScope_selfAndDescendants</code></td>
 <td>At the assigned resource and everything below it (the default).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="review-kind">Review kind<a class="headerlink" href="#review-kind" title="Permanent link">&para;</a></h3>
+<p><code>ia:ReviewKind</code> — What a review campaign reviews. Used by <code>ReviewCampaigns.reviewKind</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Individual</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BusinessRoleComposition</code></td>
+<td><code>ia:ReviewKind_BusinessRoleComposition</code></td>
+<td>The composition review of a business role: who answers for it, its lifecycle and what it contains.</td>
 </tr>
 </tbody>
 </table>
