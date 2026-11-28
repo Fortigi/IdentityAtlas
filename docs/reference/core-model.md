@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `4.1.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `4.2.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -596,16 +596,16 @@ What a source said about the graph, with provenance — not part of the graph, a
 
 ### BusinessRoleCompositionReviewSteps
 
-`ia:CompositionReviewStep` · Knowledge table · The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, or the permissions it contains. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). Never changed after it is saved, and deleted with its review.
+`ia:CompositionReviewStep` · Knowledge table · The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, the permissions it contains, or the improvements role mining suggests. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). On the improvements step the verdict follows from the reviewer's decision on each suggestion, kept in proposal. Never changed after it is saved, and deleted with its review.
 
 Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `proposal` | `ia:proposal` | jsonb |  | Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId \| identityId, displayName } \| null, responsible: [{ principalId \| identityId, displayName }] }. A proposal: the review changes nobody. |
-| `remark` | `ia:remark` | text |  | The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good. |
+| `proposal` | `ia:proposal` | jsonb |  | On the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId \| identityId, displayName } \| null, responsible: [{ principalId \| identityId, displayName }] }. On the improvements step, whatever the verdict: the suggestions as role mining made them when the review was signed, each with the reviewer's decision — { suggestions: [{ key, kind (addPermission \| automaticRule), confidence, exact, ..., decision (adopt \| decline \| notUnderstood) }], declinedBefore, since }; empty when nothing was suggested. A proposal: the review changes nobody and nothing. |
+| `remark` | `ia:remark` | text |  | The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good. On the improvements step: what the reviewer adds to the suggestions they propose, or their question about one. |
 | `reviewId` | `ia:reviewId` | uuid | → BusinessRoleCompositionReviews | The review this verdict is part of. On a campaign request: the review that answered it, empty while it waits. |
-| `step` | `ia:step` | text | `ownership`, `lifecycle`, `contents` | Which part of the role was judged. |
+| `step` | `ia:step` | text | `ownership`, `lifecycle`, `contents`, `improvements` | Which part of the role was judged. |
 | `verdict` | `ia:verdict` | text | `good`, `needsChange`, `notUnderstood` | What the reviewer said about it. |
 
 ### BusinessRoleCompositionReviews
@@ -988,6 +988,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `ownership` | `ia:ReviewStep_ownership` | Who is Accountable and Responsible for the role. |
 | `lifecycle` | `ia:ReviewStep_lifecycle` | How people get, keep and lose the role: its rules, who approves a request and who reviews the holders. |
 | `contents` | `ia:ReviewStep_contents` | The permissions the role contains. |
+| `improvements` | `ia:ReviewStep_improvements` | What role mining suggests to make the role better, only when it is at least 95% sure: a permission every holder has themselves that nobody else has and no business role contains (or, new since the last review, one within 95% of that), or for a role handed out by hand a rule on department, job title or company that picks the people who hold it. The reviewer proposes or declines each suggestion, or asks about it. Nothing suggested is an answer too. |
 
 ### Review verdict
 

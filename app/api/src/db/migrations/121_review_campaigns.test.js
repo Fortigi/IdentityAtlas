@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { STEPS } from '../../lib/compositionReviewSteps.js';
 import { INTERVALS, MIN_DUE_DAYS, MAX_DUE_DAYS } from '../../lib/reviewCampaignSchedule.js';
 import { ASKED_ROLE } from '../../lib/reviewCampaigns.js';
+
+// The steps as migration 121 allowed them; migration 122 added the improvements step.
+const STEPS = ['ownership', 'lifecycle', 'contents'];
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(join(here, '121_review_campaigns.sql'), 'utf8').replace(/^\s*--.*$/gm, '');

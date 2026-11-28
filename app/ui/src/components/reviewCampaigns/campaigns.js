@@ -10,7 +10,7 @@ export const INTERVALS = [
   { months: 12, label: 'Every year' },
 ];
 export const DEFAULT_DUE_DAYS = 30;
-export const ALL_STEPS = ['ownership', 'lifecycle', 'contents'];
+export const ALL_STEPS = ['ownership', 'lifecycle', 'contents', 'improvements'];
 
 export const STATUS_INFO = {
   noFindings: { label: 'Reviewed, no findings', tone: 'green' },

@@ -71,7 +71,7 @@ erDiagram
     BusinessRoleCompositionReviewSteps {
         uuid id PK
         uuid reviewId FK
-        string step "ownership, lifecycle, contents"
+        string step "ownership, lifecycle, contents, improvements"
         string verdict "good, needsChange, notUnderstood"
     }
     BusinessRoleCompositionReviews {

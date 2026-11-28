@@ -1,4 +1,5 @@
 import { formatUtcDay } from '@ui/utils/formatters';
+import { IMPROVEMENTS, improvementsBody, improvementsProblem } from './improvementSteps';
 
 // ─── A composition review, step by step: the words and the rules ─────────
 // Pure helpers for the review wizard and the record of a saved review. The
@@ -21,6 +22,11 @@ export const STEP_INFO = {
     label: 'Permissions',
     question: 'Are these the right permissions for this role?',
     help: 'Everyone who holds the role gets all of these.',
+  },
+  improvements: {
+    label: 'Improvements',
+    question: 'Should the role change as role mining suggests?',
+    help: 'Role mining looked at who holds this role and what else they have. It suggests only what it is at least 95% sure of; a suggestion you propose is a proposal, nothing changes by itself.',
   },
 };
 
@@ -100,6 +106,7 @@ export function emptyAnswers(steps, current) {
     verdict: null,
     remark: '',
     ...(step === 'ownership' ? { proposal: ownersOf(current) } : {}),
+    ...(step === IMPROVEMENTS ? { decisions: {} } : {}),
   }]));
 }
 
@@ -108,9 +115,11 @@ const proposes = (step, answer, current) =>
 
 /**
  * Why the reviewer cannot go on from this step yet, or null when they can: no
- * verdict, or a change that says neither what nor who.
+ * verdict, or a change that says neither what nor who. The improvements step
+ * asks a decision per suggestion of `found` instead.
  */
-export function stepProblem(step, answer, current) {
+export function stepProblem(step, answer, current, found) {
+  if (step === IMPROVEMENTS) return improvementsProblem(answer, found);
   if (!answer?.verdict) return 'Choose one of the three';
   if (answer.verdict !== 'needsChange') return null;
   if (answer.remark.trim() !== '' || proposes(step, answer, current)) return null;
@@ -120,10 +129,11 @@ export function stepProblem(step, answer, current) {
 const refOf = (p) => (p.principalId ? { principalId: p.principalId } : { identityId: p.identityId });
 
 /** What the wizard sends: one entry per step, ids only for proposed people. */
-export function buildBody(steps, answers, notes, current) {
+export function buildBody(steps, answers, notes, current, found) {
   return {
     steps: steps.map((step) => {
       const a = answers[step];
+      if (step === IMPROVEMENTS) return improvementsBody(a, found);
       const out = { step, verdict: a.verdict, remark: a.verdict === 'good' ? '' : a.remark.trim() };
       if (proposes(step, a, current)) {
         out.proposal = {

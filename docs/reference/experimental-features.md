@@ -297,7 +297,7 @@ Certification decisions permission, or answering for the role where the relative
 grid ticks **Composition review** for that role (Accountable or Responsible).
 
 **Off** — the tab is hidden and `GET` / `POST /api/access-package/{id}/composition-reviews`
-and `GET …/composition-reviews/people` answer `404`, as do `/api/review-campaigns` and `/api/review-requests/mine`. Campaigns already set up are kept and ask nobody while it is off.
+`GET …/composition-reviews/people` and `GET …/composition-reviews/improvements` answer `404`, as do `/api/review-campaigns` and `/api/review-requests/mine`. Campaigns already set up are kept and ask nobody while it is off.
 
 ### What the switch does *not* do
 

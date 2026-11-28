@@ -151,7 +151,7 @@ describe('a new campaign', () => {
     await waitFor(() => expect(calls).toHaveLength(1));
     const [method, url, body] = calls[0];
     expect([method, url]).toEqual(['POST', '/api/review-campaigns']);
-    expect(body).toMatchObject({ name: 'Finance check', steps: ['ownership', 'contents'], portfolioIds: ['p1'], roleIds: ['r4'], intervalMonths: 3, dueDays: 14 });
+    expect(body).toMatchObject({ name: 'Finance check', steps: ['ownership', 'contents', 'improvements'], portfolioIds: ['p1'], roleIds: ['r4'], intervalMonths: 3, dueDays: 14 });
     expect(body.startsOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     // Lands on the new campaign.
     expect(await screen.findByRole('heading', { name: 'Brand new' })).toBeInTheDocument();

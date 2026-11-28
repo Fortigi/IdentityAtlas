@@ -10,8 +10,8 @@ const CARLA = 'cccccccc-0000-4000-8000-000000000003';
 const good = (step) => ({ step, verdict: 'good' });
 
 describe('the vocabulary', () => {
-  it('is three steps and three verdicts, in the order a reviewer meets them', () => {
-    expect(STEPS).toEqual(['ownership', 'lifecycle', 'contents']);
+  it('is four steps and three verdicts, in the order a reviewer meets them', () => {
+    expect(STEPS).toEqual(['ownership', 'lifecycle', 'contents', 'improvements']);
     expect(VERDICTS).toEqual(['good', 'needsChange', 'notUnderstood']);
   });
 });
@@ -21,7 +21,7 @@ describe('parseReviewBody', () => {
     const out = parseReviewBody({ steps: [good('contents'), good('ownership'), good('lifecycle')], notes: '  thanks  ' });
     expect(out).toEqual({
       notes: 'thanks',
-      steps: STEPS.map(step => ({ step, verdict: 'good', remark: '', proposal: null })),
+      steps: ['ownership', 'lifecycle', 'contents'].map(step => ({ step, verdict: 'good', remark: '', proposal: null })),
     });
   });
 
@@ -156,9 +156,9 @@ describe('outcomeOf', () => {
 
 describe('orderSteps', () => {
   it('puts stored steps in the fixed order without touching the list it was given', () => {
-    const stored = [{ step: 'contents' }, { step: 'ownership' }, { step: 'lifecycle' }];
+    const stored = [{ step: 'improvements' }, { step: 'contents' }, { step: 'ownership' }, { step: 'lifecycle' }];
     expect(orderSteps(stored).map(s => s.step)).toEqual(STEPS);
-    expect(stored[0].step).toBe('contents');
+    expect(stored[0].step).toBe('improvements');
   });
 });
 

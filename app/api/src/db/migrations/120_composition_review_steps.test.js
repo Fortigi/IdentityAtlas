@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { STEPS, VERDICTS } from '../../lib/compositionReviewSteps.js';
+import { VERDICTS } from '../../lib/compositionReviewSteps.js';
+
+// The steps as migration 120 made them; migration 122 added the improvements step.
+const STEPS = ['ownership', 'lifecycle', 'contents'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sql = readFileSync(join(__dirname, '120_composition_review_steps.sql'), 'utf8').replace(/^\s*--.*$/gm, '');

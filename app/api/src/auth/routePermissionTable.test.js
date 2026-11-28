@@ -63,7 +63,7 @@ describe('the route → permission table is complete', () => {
 
   it('the probe permission gates nothing but the composition review and its people lookup', () => {
     const gatedOn = Object.entries(ROUTE_PERMISSIONS).filter(([, v]) => Array.isArray(v) && v.includes(INERT)).map(([k]) => k);
-    expect(gatedOn).toEqual(['POST /access-package/:id/composition-reviews', 'GET /access-package/:id/composition-reviews/people']);
+    expect(gatedOn).toEqual(['POST /access-package/:id/composition-reviews', 'GET /access-package/:id/composition-reviews/people', 'GET /access-package/:id/composition-reviews/improvements']);
   });
 });
 

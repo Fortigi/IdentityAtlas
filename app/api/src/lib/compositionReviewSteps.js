@@ -2,13 +2,25 @@
 // (migration 120). Pure: no database here.
 //
 // A review walks through steps and gives each one a verdict. Which steps a
-// review has is up to whoever asks for it — today the wizard asks all of them,
-// later a campaign may ask only some — so nothing here assumes all three.
+// review has is up to whoever asks for it — the wizard asks all of them, a
+// campaign may ask only some — so nothing here assumes all four.
+//
+// The improvements step is judged differently: the reviewer decides on each
+// suggestion role mining made (lib/roleImprovements.js), and the verdict follows
+// from those decisions. The suggestions themselves are the server's, worked out
+// again when the review is saved, never taken from the request.
 
-export const STEPS = Object.freeze(['ownership', 'lifecycle', 'contents']);
+export const STEPS = Object.freeze(['ownership', 'lifecycle', 'contents', 'improvements']);
 export const VERDICTS = Object.freeze(['good', 'needsChange', 'notUnderstood']);
 // The one step whose change can name people.
 export const OWNERSHIP = 'ownership';
+// The step that decides on role-mining suggestions.
+export const IMPROVEMENTS = 'improvements';
+// What a reviewer can say about one suggestion: propose it, not for this role,
+// or "I do not understand".
+export const DECISIONS = Object.freeze(['adopt', 'decline', 'notUnderstood']);
+export const MAX_DECISIONS = 50;
+const MAX_KEY = 500;
 
 export const MAX_NOTES = 10_000;
 export const MAX_REMARK = 4_000;
@@ -63,13 +75,54 @@ export function parseProposal(raw) {
   return { accountable, responsible };
 }
 
-function parseStep(raw) {
-  if (!isObject(raw)) return fail('Every step must be an object');
-  if (!STEPS.includes(raw.step)) return fail(`Unknown step. Use one of: ${STEPS.join(', ')}`);
-  if (!VERDICTS.includes(raw.verdict)) return fail(`Give every step a verdict: ${VERDICTS.join(', ')}`);
+/** The verdict of the improvements step: adopting anything is a change, a question is not understanding. */
+export function decisionsVerdict(decisions) {
+  if (decisions.some(d => d.decision === 'adopt')) return 'needsChange';
+  if (decisions.some(d => d.decision === 'notUnderstood')) return 'notUnderstood';
+  return 'good';
+}
+
+/** [{ key, decision }] from a request, each suggestion once, or { error }. */
+export function parseDecisions(raw) {
+  const list = raw ?? [];
+  if (!Array.isArray(list)) return fail('The decisions on the suggestions must be a list');
+  if (list.length > MAX_DECISIONS) return fail(`Decide on at most ${MAX_DECISIONS} suggestions`);
+  const out = [];
+  const seen = new Set();
+  for (const d of list) {
+    if (!isObject(d) || typeof d.key !== 'string' || d.key === '' || d.key.length > MAX_KEY) return fail('Every decision names the suggestion it is about');
+    if (!DECISIONS.includes(d.decision)) return fail(`Decide on every suggestion: ${DECISIONS.join(', ')}`);
+    if (seen.has(d.key)) return fail('A suggestion is decided on twice');
+    seen.add(d.key);
+    out.push({ key: d.key, decision: d.decision });
+  }
+  return out;
+}
+
+function parseRemark(raw) {
   if (raw.remark !== undefined && raw.remark !== null && typeof raw.remark !== 'string') return fail('A remark must be text');
   const remark = typeof raw.remark === 'string' ? raw.remark.trim() : '';
   if (remark.length > MAX_REMARK) return fail(`A remark can be at most ${MAX_REMARK} characters`);
+  return { remark };
+}
+
+function parseImprovements(raw) {
+  if (raw.proposal !== undefined && raw.proposal !== null) return fail('The suggestions come from role mining, not from the request');
+  const decisions = parseDecisions(raw.decisions);
+  if (decisions.error) return decisions;
+  const { remark, error } = parseRemark(raw);
+  if (error) return fail(error);
+  const verdict = decisionsVerdict(decisions);
+  return { step: IMPROVEMENTS, verdict, remark: verdict === 'good' ? '' : remark, proposal: null, decisions };
+}
+
+function parseStep(raw) {
+  if (!isObject(raw)) return fail('Every step must be an object');
+  if (!STEPS.includes(raw.step)) return fail(`Unknown step. Use one of: ${STEPS.join(', ')}`);
+  if (raw.step === IMPROVEMENTS) return parseImprovements(raw);
+  if (!VERDICTS.includes(raw.verdict)) return fail(`Give every step a verdict: ${VERDICTS.join(', ')}`);
+  const { remark, error } = parseRemark(raw);
+  if (error) return fail(error);
   let proposal = null;
   if (raw.proposal !== undefined && raw.proposal !== null) {
     if (raw.step !== OWNERSHIP || raw.verdict !== 'needsChange') return fail('Only a change to who answers for the role can propose people');

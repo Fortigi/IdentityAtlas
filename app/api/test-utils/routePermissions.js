@@ -120,6 +120,7 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'GET /access-package/:id/composition-reviews': ANY,
   'POST /access-package/:id/composition-reviews': ['data.write.certifications'],
   'GET /access-package/:id/composition-reviews/people': ['data.write.certifications'],
+  'GET /access-package/:id/composition-reviews/improvements': ['data.write.certifications'],
   'GET /review-campaigns': ['data.write.review-campaigns'],
   'GET /review-campaigns/scope-options': ['data.write.review-campaigns'],
   'POST /review-campaigns': ['data.write.review-campaigns'],
