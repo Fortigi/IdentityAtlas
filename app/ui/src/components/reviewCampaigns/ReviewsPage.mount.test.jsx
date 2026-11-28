@@ -29,26 +29,41 @@ const OPTIONS = {
   portfolios: [{ id: 'p1', displayName: 'Finance roles', roleCount: 2 }],
 };
 
-function mount({ campaigns = [CAMPAIGN, PLANNED], askedCanOpen = true, detail = DETAIL, failList = false, postError = null, actionError = null, failDetail = false, failOptions = false } = {}) {
-  const calls = [];
-  const state = { campaigns, detail };
-  const authFetch = makeAuthFetch((url, opts = {}) => {
-    const u = String(url);
-    const method = opts.method || 'GET';
-    if (method !== 'GET') calls.push([method, u, opts.body ? JSON.parse(opts.body) : undefined]);
-    if (u === '/api/review-campaigns/scope-options') return failOptions ? jsonResponse({ error: 'down' }, { ok: false, status: 500 }) : OPTIONS;
-    if (u === '/api/review-campaigns' && method === 'POST') {
-      if (postError) return jsonResponse({ error: postError }, { ok: false, status: 400 });
-      state.campaigns = [{ ...CAMPAIGN, id: 'c-new', name: 'Brand new' }, ...state.campaigns];
-      state.detail = { ...DETAIL, id: 'c-new', name: 'Brand new' };
-      return jsonResponse(state.detail, { status: 201 });
-    }
-    if (u === '/api/review-campaigns') return failList ? jsonResponse({ error: 'down' }, { ok: false, status: 500 }) : { campaigns: state.campaigns, askedCanOpen };
-    if (actionError && method !== 'GET') return jsonResponse({ error: actionError }, { ok: false, status: 404 });
+const DOWN = () => jsonResponse({ error: 'down' }, { ok: false, status: 500 });
+const orDown = (failed, answer) => (failed ? DOWN() : answer);
+
+// A fake campaigns API: reads answer from `state`, writes change it.
+function fakeApi(state, opts) {
+  const { askedCanOpen, failList, postError, actionError, failDetail, failOptions } = opts;
+  function create() {
+    if (postError) return jsonResponse({ error: postError }, { ok: false, status: 400 });
+    state.campaigns = [{ ...CAMPAIGN, id: 'c-new', name: 'Brand new' }, ...state.campaigns];
+    state.detail = { ...DETAIL, id: 'c-new', name: 'Brand new' };
+    return jsonResponse(state.detail, { status: 201 });
+  }
+  function act(u, method) {
+    if (actionError) return jsonResponse({ error: actionError }, { ok: false, status: 404 });
     if (u.endsWith('/end')) { state.detail = { ...state.detail, status: 'ended', endedAt: '2026-12-05T09:00:00Z', nextRoundOn: null }; return state.detail; }
     if (method === 'DELETE') { state.campaigns = state.campaigns.filter(c => !u.endsWith(`/${c.id}`)); return jsonResponse(null, { status: 204 }); }
-    if (u.startsWith('/api/review-campaigns/')) return failDetail ? jsonResponse({ error: 'down' }, { ok: false, status: 500 }) : state.detail;
     return undefined;
+  }
+  return (u, method) => {
+    if (u === '/api/review-campaigns/scope-options') return orDown(failOptions, OPTIONS);
+    if (u === '/api/review-campaigns' && method === 'POST') return create();
+    if (u === '/api/review-campaigns') return orDown(failList, { campaigns: state.campaigns, askedCanOpen });
+    if (method !== 'GET') return act(u, method);
+    if (u.startsWith('/api/review-campaigns/')) return orDown(failDetail, state.detail);
+    return undefined;
+  };
+}
+
+function mount({ campaigns = [CAMPAIGN, PLANNED], detail = DETAIL, askedCanOpen = true, ...fails } = {}) {
+  const calls = [];
+  const answer = fakeApi({ campaigns, detail }, { askedCanOpen, ...fails });
+  const authFetch = makeAuthFetch((url, opts = {}) => {
+    const method = opts.method || 'GET';
+    if (method !== 'GET') calls.push([method, String(url), opts.body ? JSON.parse(opts.body) : undefined]);
+    return answer(String(url), method);
   });
   renderWithProviders(h(ReviewsPage), { auth: { authFetch } });
   return { calls, user: userEvent.setup() };
