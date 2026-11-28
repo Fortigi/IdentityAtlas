@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `3.1.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `4.0.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -594,21 +594,34 @@ Edge: `parentResourceId` → `childResourceId`.
 
 What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.
 
-### BusinessRoleCompositionReviews
+### BusinessRoleCompositionReviewSteps
 
-`ia:CompositionReview` · Knowledge table · One review of what a business role (resourceId, an ia:Resource of resourceType BusinessRole) contains: notes, a sign-off, or both — never neither — by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt), with a snapshot of the role as it was then: its type and ways in and out, its holder count, who answered for it, its policies with their rules and the resources it contained. Reviews are only added, never changed: the newest sign-off is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing.
+`ia:CompositionReviewStep` · Knowledge table · The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, or the permissions it contains. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). Never changed after it is saved, and deleted with its review.
 
 Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `notes` | `ia:notes` | text |  | What the reviewer wrote. Empty only when the review is a sign-off. |
+| `proposal` | `ia:proposal` | jsonb |  | Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId \| identityId, displayName } \| null, responsible: [{ principalId \| identityId, displayName }] }. A proposal: the review changes nobody. |
+| `remark` | `ia:remark` | text |  | The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good. |
+| `reviewId` | `ia:reviewId` | uuid | → BusinessRoleCompositionReviews | The review this verdict is part of. |
+| `step` | `ia:step` | text | `ownership`, `lifecycle`, `contents` | Which part of the role was judged. |
+| `verdict` | `ia:verdict` | text | `good`, `needsChange`, `notUnderstood` | What the reviewer said about it. |
+
+### BusinessRoleCompositionReviews
+
+`ia:CompositionReview` · Knowledge table · One review of a business role (resourceId, an ia:Resource of resourceType BusinessRole), signed by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt): a verdict per step (ia:CompositionReviewStep), closing notes, and a snapshot of the role as it was then — its type and ways in and out, its holder count, who answered for it, who approved requests and reviewed the holders, its policies with their rules and the resources it contained. Signing is not agreeing: a review whose steps are all good found nothing, any other found something. Reviews are only added, never changed: the newest is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `notes` | `ia:notes` | text |  | The reviewer's closing comments on the whole role. May be empty. |
 | `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: `resourceExternalId`. |
 | `reviewedAt` | `ia:reviewedAt` | timestamp with time zone |  | When it was saved: the moment the snapshot shows. |
 | `reviewedBy` | `ia:reviewedBy` | text |  | The signed-in user who saved it (their sign-in name), never a value the request supplied; unknown while sign-in is off. |
 | `reviewedByName` | `ia:reviewedByName` | text |  | That user's display name when they saved it. |
-| `signedOff` | `ia:signedOff` | boolean |  | Whether the reviewer signed off what the role contained, as its snapshot shows. |
-| `snapshot` | `ia:snapshot` | jsonb |  | The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom}]. |
+| `snapshot` | `ia:snapshot` | jsonb |  | The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom, principalId, identityId}], participants [{policyId, participation, subjectType, displayName, principalId, groupId, managerLevel, isFallback, stage}]. |
 
 ### ChangeRequests
 
@@ -901,6 +914,26 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `self` | `ia:PropagationScope_self` | Only at the assigned resource. |
 | `descendants` | `ia:PropagationScope_descendants` | Only below the assigned resource. |
 | `selfAndDescendants` | `ia:PropagationScope_selfAndDescendants` | At the assigned resource and everything below it (the default). |
+
+### Review step
+
+`ia:ReviewStep` — A part of a business role that a composition review judges. Used by `BusinessRoleCompositionReviewSteps.step`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `ownership` | `ia:ReviewStep_ownership` | Who is Accountable and Responsible for the role. |
+| `lifecycle` | `ia:ReviewStep_lifecycle` | How people get, keep and lose the role: its rules, who approves a request and who reviews the holders. |
+| `contents` | `ia:ReviewStep_contents` | The permissions the role contains. |
+
+### Review verdict
+
+`ia:ReviewVerdict` — What a reviewer says about one step of a composition review. Used by `BusinessRoleCompositionReviewSteps.verdict`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `good` | `ia:ReviewVerdict_good` | Nothing to change. |
+| `needsChange` | `ia:ReviewVerdict_needsChange` | Something should change: the remark says what, or the proposal says who. |
+| `notUnderstood` | `ia:ReviewVerdict_notUnderstood` | The reviewer cannot judge what they read; the remark may hold their question. |
 
 ### Subject match
 

@@ -102,8 +102,8 @@ export const FEATURE_FLAGS = {
     envDefault: env => env.FEATURE_ORG_KNOWLEDGE === 'true',
   },
   // Composition review: whoever answers for a business role (or holds the
-  // certification permission) signs off what the role contains, and the review
-  // keeps a snapshot of the role as it was (migration 116). New, so OFF by
+  // certification permission) reviews the role step by step and signs, and the
+  // review keeps a snapshot of the role as it was (migrations 116, 120). New, so OFF by
   // default. While off, the role page has no Composition review tab and both
   // /api/access-package/{id}/composition-reviews endpoints answer 404. Reviews
   // already saved are kept, not deleted.

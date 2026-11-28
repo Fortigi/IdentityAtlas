@@ -13,7 +13,7 @@ export const CAPABILITY_COLUMNS = [
   { key: 'view', label: 'Sign in & view', hint: 'They can sign in without an Identity Atlas role and see it, read-only.' },
   { key: 'subUnits', label: 'Sub-units', hint: 'Also every sub-unit below it, at any depth.' },
   { key: 'mcp', label: 'MCP', hint: 'Ask about it from an AI assistant through the MCP server, seeing exactly the same.' },
-  { key: 'review', label: 'Composition review', hint: 'Sign off what the business role contains, without the certification permission.' },
+  { key: 'review', label: 'Composition review', hint: 'Review the business role step by step and sign the review, without the certification permission.' },
 ];
 
 // Capabilities that only count while `view` is on (the API clears them otherwise).

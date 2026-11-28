@@ -305,6 +305,13 @@ describe('a business role\'s composition reviews', () => {
     expect(verdict('POST', '/api/access-package/not-a-uuid/composition-reviews')).toBe(DENY);
   });
 
+  it('lets the people lookup of a review be read, never written', () => {
+    expect(verdict('GET', `${path}/people`)).toEqual({ allow: false, ownedRole: ROLE });
+    expect(verdict('POST', `${path}/people`)).toBe(DENY);
+    expect(verdict('GET', `${path}/people/`)).toBe(DENY);
+    expect(verdict('GET', `${path}/users`)).toBe(DENY);
+  });
+
   it('ownedRoleVerdict is null for any other path', () => {
     expect(ownedRoleVerdict('GET', `/api/access-package/${ROLE}`)).toBeNull();
   });

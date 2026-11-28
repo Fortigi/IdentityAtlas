@@ -6,7 +6,7 @@ vi.mock('./businessRolePeople.js', async (orig) => ({ ...(await orig()), loadPar
 const { loadBusinessRoleOwners } = await import('./businessRoleOwners.js');
 const { loadParticipants } = await import('./businessRolePeople.js');
 const {
-  snapshotPolicy, buildSnapshot, takeSnapshot, compareSnapshots,
+  snapshotPolicy, snapshotParticipant, buildSnapshot, takeSnapshot, compareSnapshots,
   ROLE_SQL, RESOURCES_SQL, POLICIES_SQL, SNAPSHOT_VERSION,
 } = await import('./businessRoleSnapshot.js');
 const { ROLE_CONTROL_SQL } = await import('./businessRoleAccessModel.js');
@@ -32,13 +32,26 @@ describe('snapshotPolicy', () => {
   });
 });
 
+describe('snapshotParticipant', () => {
+  it('keeps who it is and in which part, and fills what the source left out', () => {
+    expect(snapshotParticipant({ policyId: 'p1', participation: 'Reviewer', subjectType: 'Group', groupId: 'g7', displayName: 'Finance leads', stage: 1, contextId: 'c1' })).toEqual({
+      policyId: 'p1', participation: 'Reviewer', subjectType: 'Group', displayName: 'Finance leads', principalId: null, groupId: 'g7', managerLevel: null, isFallback: false, stage: 1,
+    });
+    expect(snapshotParticipant({ participation: 'Approver' })).toEqual({
+      policyId: null, participation: 'Approver', subjectType: null, displayName: null, principalId: null, groupId: null, managerLevel: null, isFallback: false, stage: 0,
+    });
+    expect(snapshotParticipant({ participation: 'Approver', isFallback: 'yes' }).isFallback).toBe(false);
+  });
+});
+
 describe('buildSnapshot', () => {
   it('keeps the role, its type, resources, policies and owners at that moment', () => {
     const s = buildSnapshot({
       role: { displayName: 'Finance', description: 'd', catalogName: 'Specials', holderCount: 12 },
       model: { waysIn: ['Rule'], waysOut: ['Rule'], control: 'Automatic', reviewRequired: false, reviewGap: false },
       resources: [FIN], policies: [RULE_POLICY],
-      owners: [{ id: 'o1', role: 'Accountable', displayName: 'Ann', principalId: 'x' }, { id: 'policy:y', role: 'Responsible', displayName: 'Bob', derivedFrom: ['Approver'] }],
+      owners: [{ id: 'o1', role: 'Accountable', displayName: 'Ann', principalId: 'x' }, { id: 'o2', role: 'Responsible', displayName: 'Bob', identityId: 'i-bob', derivedFrom: ['Approver'] }],
+      participants: [{ policyId: 'p1', participation: 'Approver', subjectType: 'Manager', managerLevel: 1, isFallback: true, stage: 2, onBehalf: true, rule: 'r' }],
       takenAt: '2026-11-24T15:00:00Z',
     });
     expect(s).toEqual({
@@ -48,8 +61,13 @@ describe('buildSnapshot', () => {
       type: { control: 'Automatic', waysIn: ['Rule'], waysOut: ['Rule'], reviewGap: false },
       resources: [FIN],
       policies: [snapshotPolicy(RULE_POLICY)],
-      owners: [{ role: 'Accountable', displayName: 'Ann', derivedFrom: null }, { role: 'Responsible', displayName: 'Bob', derivedFrom: ['Approver'] }],
+      owners: [
+        { role: 'Accountable', displayName: 'Ann', derivedFrom: null, principalId: 'x', identityId: null },
+        { role: 'Responsible', displayName: 'Bob', derivedFrom: ['Approver'], principalId: null, identityId: 'i-bob' },
+      ],
+      participants: [{ policyId: 'p1', participation: 'Approver', subjectType: 'Manager', displayName: null, principalId: null, groupId: null, managerLevel: 1, isFallback: true, stage: 2 }],
     });
+    expect(s.version).toBe(2);
   });
 
   it('is Unknown with no policies, and fills what a missing row leaves out', () => {
@@ -57,6 +75,7 @@ describe('buildSnapshot', () => {
     expect(s.type).toEqual({ control: 'Unknown', waysIn: ['Unknown'], waysOut: ['Unknown'], reviewGap: false });
     expect(s.role).toEqual({ displayName: null, description: null, catalogName: null, holderCount: 0 });
     expect(s.resources).toEqual([{ id: 'g9', displayName: 'Orphan', resourceType: null, systemName: null, roleName: null }]);
+    expect(s.participants).toEqual([]);
   });
 });
 
@@ -80,7 +99,8 @@ describe('takeSnapshot', () => {
     expect(query).toHaveBeenCalledWith(RESOURCES_SQL, ['role-1']);
     expect(query).toHaveBeenCalledWith(POLICIES_SQL, ['role-1']);
     expect(s).toMatchObject({ takenAt: 'NOW', role: { displayName: 'Finance', holderCount: 3 }, type: { control: 'Automatic' }, resources: [FIN] });
-    expect(s.owners.map(o => [o.role, o.displayName])).toEqual([['Accountable', 'Ann'], ['Responsible', 'Carla']]);
+    expect(s.owners.map(o => [o.role, o.displayName, o.principalId])).toEqual([['Accountable', 'Ann', null], ['Responsible', 'Carla', 'u9']]);
+    expect(s.participants).toEqual([snapshotParticipant({ participation: 'Approver', subjectType: 'User', principalId: 'u9', displayName: 'Carla' })]);
   });
 });
 
@@ -110,7 +130,7 @@ describe('compareSnapshots', () => {
   const before = { resources: [FIN, PAY], type: { control: 'Manual' }, policies: [snapshotPolicy(RULE_POLICY)] };
 
   it('is quiet when nothing changed, whatever the order', () => {
-    expect(compareSnapshots(before, { ...before, resources: [PAY, FIN] })).toEqual({ added: [], removed: [], type: null, policiesChanged: false });
+    expect(compareSnapshots(before, { ...before, resources: [PAY, FIN] })).toEqual({ added: [], removed: [], type: null, policiesChanged: false, ownersChanged: false });
   });
 
   it('names resources added and removed', () => {
@@ -131,6 +151,21 @@ describe('compareSnapshots', () => {
   });
 
   it('copes with an empty or missing picture', () => {
-    expect(compareSnapshots(undefined, undefined)).toEqual({ added: [], removed: [], type: null, policiesChanged: false });
+    expect(compareSnapshots(undefined, undefined)).toEqual({ added: [], removed: [], type: null, policiesChanged: false, ownersChanged: false });
+  });
+
+  it('notices when other people answer for the role, by who they are and in which role', () => {
+    const ann = { role: 'Accountable', principalId: 'a', displayName: 'Ann' };
+    const bob = { role: 'Responsible', identityId: 'b', displayName: 'Bob' };
+    const was = { ...before, owners: [ann, bob] };
+    const changed = (owners) => compareSnapshots(was, { ...before, owners }).ownersChanged;
+    expect(changed([bob, { ...ann, displayName: 'Ann Analyst' }])).toBe(false);
+    expect(changed([ann])).toBe(true);
+    expect(changed([ann, { ...bob, role: 'Accountable' }])).toBe(true);
+    expect(changed([{ ...ann, principalId: 'z' }, bob])).toBe(true);
+    expect(changed([ann, { role: 'Responsible', displayName: 'Bob' }])).toBe(true);
+    // An old picture named owners without ids: the same names are the same people.
+    const named = [{ role: 'Accountable', displayName: 'Ann' }];
+    expect(compareSnapshots({ owners: named }, { owners: named }).ownersChanged).toBe(false);
   });
 });

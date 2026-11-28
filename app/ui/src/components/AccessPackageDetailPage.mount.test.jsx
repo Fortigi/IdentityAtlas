@@ -7,6 +7,7 @@ import {
   screen,
   cleanup,
   userEvent,
+  within,
 } from '@ui/test-utils/renderWithProviders';
 import AccessPackageDetailPage from '@ui/components/AccessPackageDetailPage';
 
@@ -20,14 +21,14 @@ const pkg = (over = {}) => ({
   ...over,
 });
 
-// What /composition-reviews answers: nobody signed off yet, one group in the role now.
+// What /composition-reviews answers: nobody reviewed it yet, one group in the role now.
 const COMPOSITION = {
-  reviews: [], latestSignOff: null, canReview: true,
+  reviews: [], latestReview: null, canReview: true, steps: ['ownership', 'lifecycle', 'contents'], verdicts: ['good', 'needsChange', 'notUnderstood'],
   current: {
-    version: 1, takenAt: '2026-11-20T10:00:00Z', role: { displayName: 'Finance Access', holderCount: 3 },
+    version: 2, takenAt: '2026-11-20T10:00:00Z', role: { displayName: 'Finance Access', holderCount: 3 },
     type: { control: 'Manual', waysIn: [], waysOut: [], reviewGap: false },
     resources: [{ id: 'g1', displayName: 'SG-Finance', resourceType: 'Group', systemName: 'Entra ID' }],
-    policies: [], owners: [],
+    policies: [], owners: [], participants: [],
   },
 };
 
@@ -145,7 +146,7 @@ describe('AccessPackageDetailPage requests & reviews', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: /^Requests & reviews/ }));
     expect(await screen.findByRole('region', { name: 'Composition review' })).toBeInTheDocument();
-    expect(await screen.findByText('Nobody has signed off what this role contains yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Nobody has reviewed this role yet.')).toBeInTheDocument();
     // Nobody requests it and nothing reviews it: no request/review lists.
     expect(screen.queryByText(/Pending requests/i)).toBeNull();
   });
@@ -156,15 +157,18 @@ describe('AccessPackageDetailPage requests & reviews', () => {
     expect(requestsTab()).toBeNull();
   });
 
-  it('opens the Overview with Resources unfolded from "See the resources"', async () => {
+  it('opens the review wizard in place of the review status, on the role\'s own data', async () => {
     renderPage({ features: ON });
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: /^Requests & reviews/ }));
-    await user.click(await screen.findByRole('button', { name: 'See the resources' }));
-    expect(await screen.findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /^Resources/, expanded: true })).toBeInTheDocument();
-    // Only the section asked for opens.
-    expect(screen.getByRole('button', { name: /^People/ })).toHaveAttribute('aria-expanded', 'false');
+    await user.click(await screen.findByRole('button', { name: 'Review this role' }));
+    const wizard = await screen.findByTestId('review-wizard');
+    expect(screen.queryByTestId('review-status')).toBeNull();
+    expect(within(wizard).getByRole('region', { name: 'Who answers for this role now' })).toBeInTheDocument();
+    // The lifecycle step reads the role the page already loaded.
+    await user.click(within(wizard).getByRole('radio', { name: 'Good' }));
+    await user.click(within(wizard).getByRole('button', { name: 'Next' }));
+    expect(await within(wizard).findByText('Getting it')).toBeInTheDocument();
   });
 
   it('shows the requests without a composition review when the flag is off for a requested role', async () => {

@@ -119,6 +119,7 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'GET /access-package/:id/participants': ANY,
   'GET /access-package/:id/composition-reviews': ANY,
   'POST /access-package/:id/composition-reviews': ['data.write.certifications'],
+  'GET /access-package/:id/composition-reviews/people': ['data.write.certifications'],
   'PUT /access-package/:id/owners': ['data.write.contexts', 'admin.context-plugins'],
   'DELETE /access-package/:id/owners/:ownerId': ['data.write.contexts', 'admin.context-plugins'],
   'POST /access-package/:id/owners/suggestions/reject': ['data.write.contexts', 'admin.context-plugins'],

@@ -87,9 +87,6 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   // A context owner who answers for this role reviews it from their own page.
   const answersForRole = useAnswersForRole(accessPackageId);
   const [riskData, setRiskData] = useState(null);
-  // The Overview section a link elsewhere on the page asks to open (the
-  // composition review's "see what it contains" opens Resources).
-  const [overviewSection, setOverviewSection] = useState(null);
   // Experimental (flag compositionReview). Not part of a shared view, except for
   // a context owner who answers for the role.
   const showComposition = compositionReview && (!sharedView || answersForRole);
@@ -120,18 +117,14 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
 
   const renderCustomTab = useCallback((key, data, openTab) => {
     if (key === 'overview') {
-      return <BusinessRoleOverview key={overviewSection || 'none'} roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail}
-        onOpenTab={openTab} openSection={overviewSection} />;
+      return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
     }
     if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
     // Attributes, Relationships, Timeline, Diff and Risk are EntityDetailPage's own.
     if (key !== 'requests') return null;
-    // Resources and People are sections of the Overview, not tabs: the
-    // composition review's link to them opens that section there.
-    const openOverviewSection = (section) => { setOverviewSection(section); openTab('overview'); };
-    return <BusinessRoleRequestsAndReviews roleId={accessPackageId} authFetch={authFetch} showComposition={showComposition}
-      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenTab={openOverviewSection} />;
-  }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition, overviewSection]);
+    return <BusinessRoleRequestsAndReviews roleId={accessPackageId} data={data} authFetch={authFetch} showComposition={showComposition}
+      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenDetail={onOpenDetail} />;
+  }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition]);
 
   return (
     <EntityDetailPage

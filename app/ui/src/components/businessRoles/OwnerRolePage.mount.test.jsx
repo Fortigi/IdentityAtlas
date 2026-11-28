@@ -36,7 +36,7 @@ function api({ canReview = true, tree = [ROOT] } = {}) {
     if (u.includes('/api/risk-scores/')) return jsonResponse(null, { ok: false, status: 404 });
     if (u.endsWith('/composition-reviews')) {
       if (opts.method === 'POST') { posts.push([u, JSON.parse(opts.body)]); return jsonResponse({ id: 'new' }, { status: 201 }); }
-      return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }] }, latestSignOff: null, canReview };
+      return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }], owners: [] }, latestReview: null, steps: ['contents'], verdicts: ['good', 'needsChange', 'notUnderstood'], canReview };
     }
     if (u.endsWith(`/api/access-package/${ROLE}`)) return roleBody(ROLE, 'Finance controller');
     if (u.endsWith(`/api/access-package/${SECOND}`)) return roleBody(SECOND, 'Payroll clerk');
@@ -134,17 +134,19 @@ describe('Business roles on Role portfolios', () => {
     expect(nav().getByText('Finance controller')).toBeInTheDocument();
   });
 
-  it('opens the first role on its Overview, and signs off its composition under Requests & reviews', async () => {
+  it('opens the first role on its Overview, and reviews it under Requests & reviews', async () => {
     const { user, posts } = mount();
     await user.click(await portfolioTab());
     await roleOpened();
     expect(await screen.findByText('Who answers for this role')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
     await openReviews(user);
-    const form = await screen.findByRole('form', { name: 'Your review' });
-    await user.click(within(form).getByRole('checkbox'));
-    await user.click(within(form).getByRole('button', { name: 'Save review' }));
-    await waitFor(() => expect(posts).toEqual([[`/api/access-package/${ROLE}/composition-reviews`, { notes: '', signedOff: true }]]));
+    await user.click(await screen.findByRole('button', { name: 'Review this role' }));
+    const wizard = await screen.findByTestId('review-wizard');
+    await user.click(within(wizard).getByRole('radio', { name: 'Good' }));
+    await user.click(within(wizard).getByRole('button', { name: 'Next' }));
+    await user.click(within(wizard).getByRole('button', { name: 'Sign and finish the review' }));
+    await waitFor(() => expect(posts).toEqual([[`/api/access-package/${ROLE}/composition-reviews`, { steps: [{ step: 'contents', verdict: 'good', remark: '' }], notes: '' }]]));
   });
 
   it('opens another role from under its portfolio, and the tab stays lit', async () => {
@@ -157,12 +159,12 @@ describe('Business roles on Role portfolios', () => {
     expect(screen.getByRole('tab', { name: 'Role portfolios' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows no form when the API says they may not review (the relative permission is off)', async () => {
+  it('offers no review when the API says they may not review (the relative permission is off)', async () => {
     const { user } = mount({ canReview: false });
     await user.click(await portfolioTab());
     await openReviews(user);
-    await screen.findByTestId('sign-off-status');
-    expect(screen.queryByRole('form', { name: 'Your review' })).toBeNull();
+    await screen.findByTestId('review-status');
+    expect(screen.queryByRole('button', { name: 'Review this role' })).toBeNull();
   });
 
   it('has no Composition review while the experimental feature is off', async () => {

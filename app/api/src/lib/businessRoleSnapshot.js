@@ -3,14 +3,19 @@
 // it was when it was reviewed, not as it is now.
 //
 //   {
-//     version: 1,
+//     version: 2,
 //     takenAt,
 //     role:      { displayName, description, catalogName, holderCount },
 //     type:      { control, waysIn, waysOut, reviewGap },
 //     resources: [{ id, displayName, resourceType, systemName, roleName }],
 //     policies:  [{ id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration }],
-//     owners:    [{ role, displayName, derivedFrom }],
+//     owners:    [{ role, displayName, derivedFrom, principalId, identityId }],
+//     participants: [{ policyId, participation, subjectType, displayName, principalId, groupId, managerLevel, isFallback, stage }],
 //   }
+//
+// Version 2 (migration 120) added who the owners are (their ids, so a review can
+// propose other people against them) and the people the policies name: who
+// approves a request and who reviews the holders.
 //
 // The parts reuse the definitions the role's own pages use (the access model,
 // the holder count, who answers for the role), so the picture and the page agree.
@@ -21,7 +26,7 @@ import { loadBusinessRoleOwners } from './businessRoleOwners.js';
 import { loadParticipants, withPolicyResponsible } from './businessRolePeople.js';
 import { catalogJoinSql } from './businessRoleCatalog.js';
 
-export const SNAPSHOT_VERSION = 1;
+export const SNAPSHOT_VERSION = 2;
 
 // The role's catalog (role portfolio) is the Catalog context that holds it
 // (migration 117), read through the same join as every other screen.
@@ -73,10 +78,25 @@ export function snapshotPolicy(p) {
   };
 }
 
+/** One approver, reviewer or requestor as the picture keeps it. Pure. */
+export function snapshotParticipant(p) {
+  return {
+    policyId: p.policyId ?? null,
+    participation: p.participation,
+    subjectType: p.subjectType ?? null,
+    displayName: p.displayName ?? null,
+    principalId: p.principalId ?? null,
+    groupId: p.groupId ?? null,
+    managerLevel: p.managerLevel ?? null,
+    isFallback: p.isFallback === true,
+    stage: p.stage ?? 0,
+  };
+}
+
 const UNKNOWN_TYPE = { control: 'Unknown', waysIn: ['Unknown'], waysOut: ['Unknown'], reviewGap: false };
 
 /** The picture from its parts. Pure. */
-export function buildSnapshot({ role, model, resources, policies, owners, takenAt }) {
+export function buildSnapshot({ role, model, resources, policies, owners, participants = [], takenAt }) {
   const type = model ? { control: model.control, waysIn: model.waysIn, waysOut: model.waysOut, reviewGap: model.reviewGap } : UNKNOWN_TYPE;
   return {
     version: SNAPSHOT_VERSION,
@@ -92,7 +112,11 @@ export function buildSnapshot({ role, model, resources, policies, owners, takenA
       id: r.id, displayName: r.displayName, resourceType: r.resourceType ?? null, systemName: r.systemName ?? null, roleName: r.roleName ?? null,
     })),
     policies: policies.map(snapshotPolicy),
-    owners: owners.map(o => ({ role: o.role, displayName: o.displayName ?? null, derivedFrom: o.derivedFrom ?? null })),
+    owners: owners.map(o => ({
+      role: o.role, displayName: o.displayName ?? null, derivedFrom: o.derivedFrom ?? null,
+      principalId: o.principalId ?? null, identityId: o.identityId ?? null,
+    })),
+    participants: participants.map(snapshotParticipant),
   };
 }
 
@@ -112,17 +136,20 @@ export async function takeSnapshot(roleId, { pool = db, now = () => new Date().t
     resources: resources.rows,
     policies: policies.rows,
     owners: withPolicyResponsible(stored, participants),
+    participants,
     takenAt: now(),
   });
 }
 
 const resourcesOf = (snapshot) => snapshot?.resources || [];
 const controlOf = (snapshot) => snapshot?.type?.control ?? 'Unknown';
+const ownerKey = (owners = []) => owners.map(o => `${o.role}|${o.principalId ?? o.identityId ?? o.displayName ?? ''}`).sort().join(';');
 const ruleKey = (policies = []) => policies.map(p => `${p.id}|${p.targetRule ?? ''}|${(p.waysIn || []).join(',')}|${(p.waysOut || []).join(',')}`).sort().join(';');
 
 /**
  * What changed between two pictures: resources added and removed (by name),
- * the type when it moved, and whether any policy or its rule changed. Pure.
+ * the type when it moved, whether any policy or its rule changed, and whether
+ * other people answer for it. Pure.
  */
 export function compareSnapshots(before, now) {
   const was = resourcesOf(before);
@@ -136,5 +163,6 @@ export function compareSnapshots(before, now) {
     removed: was.filter(r => !isIds.has(r.id)).map(r => r.displayName),
     type: fromType === toType ? null : { from: fromType, to: toType },
     policiesChanged: ruleKey(before?.policies) !== ruleKey(now?.policies),
+    ownersChanged: ownerKey(before?.owners) !== ownerKey(now?.owners),
   };
 }

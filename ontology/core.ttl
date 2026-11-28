@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "3.1.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/3.1.0> ;
+    owl:versionInfo "4.0.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/4.0.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -1839,26 +1839,23 @@ ia:closedReason a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:comment "Why it was closed, in one sentence." .
 
 # ─── Composition reviews ─────────────────────────────────────────────────────
-# Somebody looked at what a business role contains and said so: a note, a
-# sign-off, or both. Each review is its own record, linked to the role, at one
-# moment, with a picture of the role as it was then — so a later reader sees
-# what was reviewed, not what the role holds today.
+# Somebody walked through a business role step by step — who answers for it,
+# its lifecycle, the permissions it contains — gave each step a verdict and
+# signed. Each review is its own record, linked to the role, at one moment, with
+# a picture of the role as it was then — so a later reader sees what was
+# reviewed, not what the role holds today. A review with findings is a review
+# too; it changes nothing on the role.
 
 ia:CompositionReview a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Composition review" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "One review of what a business role (resourceId, an ia:Resource of resourceType BusinessRole) contains: notes, a sign-off, or both — never neither — by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt), with a snapshot of the role as it was then: its type and ways in and out, its holder count, who answered for it, its policies with their rules and the resources it contained. Reviews are only added, never changed: the newest sign-off is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing." ;
+    rdfs:comment "One review of a business role (resourceId, an ia:Resource of resourceType BusinessRole), signed by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt): a verdict per step (ia:CompositionReviewStep), closing notes, and a snapshot of the role as it was then — its type and ways in and out, its holder count, who answered for it, who approved requests and reviewed the holders, its policies with their rules and the resources it contained. Signing is not agreeing: a review whose steps are all good found nothing, any other found something. Reviews are only added, never changed: the newest is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing." ;
     ia:table "BusinessRoleCompositionReviews" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 ia:notes a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:CompositionReview ;
     rdfs:range xsd:string ;
     rdfs:label "notes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "What the reviewer wrote. Empty only when the review is a sign-off." .
-ia:signedOff a owl:DatatypeProperty ; ia:sqlType "boolean" ;
-    rdfs:domain ia:CompositionReview ;
-    rdfs:range xsd:boolean ;
-    rdfs:label "signedOff" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Whether the reviewer signed off what the role contained, as its snapshot shows." .
+    rdfs:comment "The reviewer's closing comments on the whole role. May be empty." .
 ia:reviewedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:CompositionReview ;
     rdfs:range xsd:string ;
@@ -1878,4 +1875,63 @@ ia:snapshot a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
     rdfs:domain ia:CompositionReview ;
     rdfs:range rdf:JSON ;
     rdfs:label "snapshot" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom}]." .
+    rdfs:comment "The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom, principalId, identityId}], participants [{policyId, participation, subjectType, displayName, principalId, groupId, managerLevel, isFallback, stage}]." .
+
+ia:CompositionReviewStep a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Composition review step" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, or the permissions it contains. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). Never changed after it is saved, and deleted with its review." ;
+    ia:table "BusinessRoleCompositionReviewSteps" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ReviewStep a owl:Class ;
+    rdfs:label "Review step" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A part of a business role that a composition review judges." .
+ia:ReviewStep_ownership a owl:NamedIndividual, ia:ReviewStep ; ia:typeValue "ownership" ;
+    rdfs:label "ownership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who is Accountable and Responsible for the role." .
+ia:ReviewStep_lifecycle a owl:NamedIndividual, ia:ReviewStep ; ia:typeValue "lifecycle" ;
+    rdfs:label "lifecycle" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How people get, keep and lose the role: its rules, who approves a request and who reviews the holders." .
+ia:ReviewStep_contents a owl:NamedIndividual, ia:ReviewStep ; ia:typeValue "contents" ;
+    rdfs:label "contents" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The permissions the role contains." .
+
+ia:ReviewVerdict a owl:Class ;
+    rdfs:label "Review verdict" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What a reviewer says about one step of a composition review." .
+ia:ReviewVerdict_good a owl:NamedIndividual, ia:ReviewVerdict ; ia:typeValue "good" ;
+    rdfs:label "good" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Nothing to change." .
+ia:ReviewVerdict_needsChange a owl:NamedIndividual, ia:ReviewVerdict ; ia:typeValue "needsChange" ;
+    rdfs:label "needsChange" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Something should change: the remark says what, or the proposal says who." .
+ia:ReviewVerdict_notUnderstood a owl:NamedIndividual, ia:ReviewVerdict ; ia:typeValue "notUnderstood" ;
+    rdfs:label "notUnderstood" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The reviewer cannot judge what they read; the remark may hold their question." .
+
+ia:reviewId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:CompositionReviewStep ;
+    rdfs:range ia:CompositionReview ;
+    rdfs:label "reviewId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The review this verdict is part of." .
+ia:step a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:CompositionReviewStep ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ReviewStep ;
+    rdfs:label "step" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Which part of the role was judged." .
+ia:verdict a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:CompositionReviewStep ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ReviewVerdict ;
+    rdfs:label "verdict" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the reviewer said about it." .
+ia:remark a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:CompositionReviewStep ;
+    rdfs:range xsd:string ;
+    rdfs:label "remark" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good." .
+ia:proposal a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:CompositionReviewStep ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "proposal" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId | identityId, displayName } | null, responsible: [{ principalId | identityId, displayName }] }. A proposal: the review changes nobody." .

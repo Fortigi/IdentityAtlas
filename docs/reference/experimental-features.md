@@ -281,9 +281,10 @@ context assistant and organisation knowledge use the model that runs inside the 
 
 ## Composition review
 
-Somebody signs off what a business role contains, with notes; each review is kept with who
-saved it, when, and a snapshot of the role at that moment, so a later reader sees what was
-reviewed and what changed since. See
+Somebody reviews a business role in a wizard — who answers for it, its lifecycle, the
+permissions it contains — gives each step a verdict and signs; each review is kept with who
+signed it, when, and a snapshot of the role at that moment, so a later reader sees what was
+reviewed, what was found and what changed since. See
 [Reviewing what a business role contains](../concepts/governance-model.md#reviewing-what-a-business-role-contains).
 It is experimental because it is new.
 
@@ -296,7 +297,7 @@ Certification decisions permission, or answering for the role where the relative
 grid ticks **Composition review** for that role (Accountable or Responsible).
 
 **Off** — the tab is hidden and `GET` / `POST /api/access-package/{id}/composition-reviews`
-answer `404`.
+and `GET …/composition-reviews/people` answer `404`.
 
 ### What the switch does *not* do
 
