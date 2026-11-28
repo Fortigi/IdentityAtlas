@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useAuth } from '@ui/auth/AuthGate';
+import { useFetch } from '@ui/hooks/useFetch';
 import WizardShell from '@ui/components/WizardShell';
 import BusinessRoleLifecycle from '@ui/components/businessRoles/BusinessRoleLifecycle';
 import BusinessRoleResources from '@ui/components/businessRoles/BusinessRoleResources';
@@ -6,7 +8,9 @@ import StepVerdict from './StepVerdict';
 import HoldersPanel from './HoldersPanel';
 import { CurrentOwners, ProposedOwners } from './OwnershipStep';
 import ReviewRecord from './ReviewRecord';
+import ImprovementsStep from './ImprovementsStep';
 import { STEP_INFO, SIGN_STEP, buildBody, emptyAnswers, outcomeText, stepLabel, stepProblem } from './reviewSteps';
+import { IMPROVEMENTS, judgedImprovements } from './improvementSteps';
 
 // ─── The composition review wizard ───────────────────────────────────────
 // Opens when someone says "I want to review this role". One screen per step the
@@ -14,6 +18,9 @@ import { STEP_INFO, SIGN_STEP, buildBody, emptyAnswers, outcomeText, stepLabel, 
 // campaign asks), each ending in a verdict, and a last screen to sign. Nothing
 // is saved until the reviewer signs: then the whole review goes in one request.
 // A review with findings is still a review; signing is not agreeing.
+//
+// The improvements step is the one without three choices: the reviewer decides
+// on each suggestion role mining makes, asked for as the wizard opens.
 
 const MUTED = 'text-sm text-gray-600 dark:text-gray-400';
 const PRIMARY = 'rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50';
@@ -33,8 +40,8 @@ function StepBody({ step, roleId, data, current, onOpenDetail }) {
   return null;
 }
 
-function SignStep({ steps, answers, current, notes, onNotes }) {
-  const judged = steps.map(step => ({ step, ...answers[step] }));
+function SignStep({ steps, answers, current, found, notes, onNotes }) {
+  const judged = steps.map(step => (step === IMPROVEMENTS ? judgedImprovements(answers[step], found) : { step, ...answers[step] }));
   return (
     <div className="space-y-4">
       <section aria-label="Your review" className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -62,19 +69,29 @@ export default function ReviewWizard({ roleId, data, steps, verdicts, current, o
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const { authFetch } = useAuth();
+  const mining = useFetch(`/api/access-package/${encodeURIComponent(roleId)}/composition-reviews/improvements`, { authFetch, enabled: steps.includes(IMPROVEMENTS) });
+  const found = mining.error ? null : mining.data;
   const screen = screens[index];
   const signing = screen === SIGN_STEP;
   const answer = answers[screen];
-  const problem = signing ? null : stepProblem(screen, answer, current);
+  const problem = signing ? null : stepProblem(screen, answer, current, found);
   const setAnswer = (next) => setAnswers(prev => ({ ...prev, [screen]: next }));
   const go = (to) => { setError(null); setIndex(to); };
 
   async function sign() {
     setBusy(true);
     setError(null);
-    const failure = await onSave(buildBody(steps, answers, notes, current));
+    const failure = await onSave(buildBody(steps, answers, notes, current, found));
     setBusy(false);
-    if (failure) setError(failure);
+    if (!failure) return;
+    setError(failure);
+    // The data moved on while they reviewed: ask role mining again, from that step.
+    if (steps.includes(IMPROVEMENTS) && /suggestions changed/i.test(failure)) {
+      mining.reload();
+      setAnswers(prev => ({ ...prev, [IMPROVEMENTS]: { ...prev[IMPROVEMENTS], decisions: {} } }));
+      setIndex(steps.indexOf(IMPROVEMENTS));
+    }
   }
 
   const stepper = screens.map((s, i) => ({ n: i + 1, label: s === SIGN_STEP ? 'Sign' : stepLabel(s) }));
@@ -83,7 +100,14 @@ export default function ReviewWizard({ roleId, data, steps, verdicts, current, o
       <WizardShell title="Review this role" onCancel={onCancel} cancelDisabled={busy} steps={stepper} currentStep={index + 1}
         onStepClick={n => go(n - 1)} error={error}>
         <div className="space-y-4">
-          {signing ? <SignStep steps={steps} answers={answers} current={current} notes={notes} onNotes={setNotes} /> : (
+          {signing && <SignStep steps={steps} answers={answers} current={current} found={found} notes={notes} onNotes={setNotes} />}
+          {screen === IMPROVEMENTS && (
+            <>
+              <p className={MUTED}>{STEP_INFO[screen].help}</p>
+              <ImprovementsStep found={found} loading={mining.loading} error={mining.error} onRetry={mining.reload} answer={answer} onChange={setAnswer} />
+            </>
+          )}
+          {!signing && screen !== IMPROVEMENTS && (
             <>
               <p className={MUTED}>{STEP_INFO[screen]?.help}</p>
               <StepBody step={screen} roleId={roleId} data={data} current={current} onOpenDetail={onOpenDetail} />
@@ -98,7 +122,7 @@ export default function ReviewWizard({ roleId, data, steps, verdicts, current, o
           <div className="flex items-center justify-between gap-3">
             <button type="button" className={SECONDARY} onClick={() => go(index - 1)} disabled={index === 0 || busy}>Back</button>
             <div className="flex items-center gap-3">
-              {problem && answer?.verdict && <span className="text-xs text-amber-800 dark:text-amber-300">{problem}</span>}
+              {problem && (answer?.verdict || screen === IMPROVEMENTS) && <span className="text-xs text-amber-800 dark:text-amber-300">{problem}</span>}
               {signing
                 ? <button type="button" className={PRIMARY} onClick={sign} disabled={busy}>{busy ? 'Saving…' : 'Sign and finish the review'}</button>
                 : <button type="button" className={PRIMARY} onClick={() => go(index + 1)} disabled={!!problem}>Next</button>}

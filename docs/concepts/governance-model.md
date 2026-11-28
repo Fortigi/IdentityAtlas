@@ -270,16 +270,29 @@ The wizard has one screen per step, and a last one to sign:
 1. **Who answers for it** — the Accountable and Responsible people as they are now.
 2. **Lifecycle** — how people get, keep and lose the role: the rules, who approves a request and who reviews the holders, each shown only where it applies. Who has the role now, and who lost it in the last 90 days, is one click away.
 3. **Permissions** — the resources the role contains.
-4. **Sign** — what you said per step, room for general comments, and the signature.
+4. **Improvements** — what role mining suggests to make the role better (see below), each to propose, decline or ask about.
+5. **Sign** — what you said per step, room for general comments, and the signature.
 
-On each step you choose **Good**, **Needs a change** or **I do not understand what I am reading**. A change needs saying what should change; "I do not understand" may carry your question. On the first step a change can instead name the people it should be, picked from the directory.
+On each of the first three steps you choose **Good**, **Needs a change** or **I do not understand what I am reading**. A change needs saying what should change; "I do not understand" may carry your question. On the first step a change can instead name the people it should be, picked from the directory.
 
 - **A review is a review, not a change.** Proposed owners are stored with the review as a proposal; nothing on the role changes. Signing does not mean agreeing: a review whose steps are all good reads **no findings**, any other reads the number of findings.
 - A review is an object of its own, linked to the role, and never changed after it is signed: one verdict per step with its remark, the general comments, who signed (the signed-in user's e-mail or user name, and their display name), when, and a **snapshot** of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, who approved requests and reviewed the holders, its assignment policies with their rules, and the resources it contained (name, type, system).
 - The tab shows every review with what it said per step and **What was reviewed** (the snapshot, as it was), and for the latest review what changed since: resources added or removed, a different type, a changed policy or rule, or other people answering for it.
-- A review holds the steps that were asked. Today the wizard asks all three; the model allows a later campaign to ask only some.
-- It lives in its own tables, `BusinessRoleCompositionReviews` and `BusinessRoleCompositionReviewSteps` (migrations 116 and 120), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
+- A review holds the steps that were asked: all four, or those a review campaign asks.
+- It lives in its own tables, `BusinessRoleCompositionReviews` and `BusinessRoleCompositionReviewSteps` (migrations 116, 120 and 122), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
 - It is **experimental** and off by default: switch it on under **Admin → Experimental → Composition review**. While it is off the section is hidden and its endpoints answer 404; reviews already saved are kept.
+
+#### The improvements step: role mining without guessing
+
+The fourth step looks at who holds the role and what else they have, and suggests a change only when it is **at least 95% sure** — without AI, by counting. How sure is the overlap between two groups of people: those who hold the role, and those a suggestion is about. Everyone in both groups, divided by everyone in either; one person too many or too few lowers it. Three kinds of suggestion:
+
+- **Add a permission everyone has.** A permission every holder of the role has themselves (directly, not through another group), that nobody else has, and that no business role contains yet — an exact match, 100%.
+- **Add a new permission that nearly everyone has.** The same, within 95% of exact, but only for a permission created since the last review of the role (or, when nobody reviewed it yet, in the last 90 days). An old near match was most likely left out on purpose, so it is not suggested.
+- **Hand the role out by a rule.** For a role handed out by hand — no assignment policy with an automatic rule, and nobody holding it by one: a rule on department, job title and/or company that would pick the people who hold it, at least 95% right. The fewest conditions win.
+
+Nothing is suggested for a role held by fewer than 5 people: an exact match among a handful of people is as often a coincidence. Roles, applications, app registrations, consents, app-only permissions, ownership and dynamic groups (whose members a rule keeps, such as the AutoAssignment_ groups Entra makes for automatic assignment policies) are never suggested as a permission. When nothing comes that close, the step says so: **Role mining found no improvements for this role.**
+
+Per suggestion the reviewer chooses **Propose this**, **Not for this role** or **I do not understand this** (with a question). Proposing anything makes the step a finding; like a proposed owner, it is a proposal and changes nothing. The suggestions are worked out again when the review is signed and stored with the review as they were then, each with its decision. A suggestion declined in the last review is not asked again. Who may review the role may ask for its suggestions (`GET /api/access-package/:id/composition-reviews/improvements`).
 - Reviewing needs the **Certification decisions** permission (`data.write.certifications`) — or answering for the role (its **Accountable** or **Responsible**, through any of your accounts) where **Admin → Roles & Permissions → Relative permissions** ticks **Composition review** for their role (Accountable or Responsible) on the Business roles row. Anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`). Whoever may review a role may also look up people to propose as its owner (`GET /api/access-package/:id/composition-reviews/people?search=`): name and e-mail of at most ten matching user accounts.
 - In the ontology it is `ia:CompositionReview` with its `ia:CompositionReviewStep`s ([core model](../reference/core-model.md)).
 
@@ -287,7 +300,7 @@ On each step you choose **Good**, **Needs a change** or **I do not understand wh
 
 A **review campaign** asks people to do that composition review, instead of waiting for them to think of it. You set one up on the top-level **Reviews** tab (permission **Review campaigns**, `data.write.review-campaigns`; experimental, part of Composition review — the tab shows only while that is on, and only to whoever holds the permission):
 
-- **What to review** — any of the three steps: who answers for the role, its lifecycle, its permissions. The wizard then shows only those.
+- **What to review** — any of the four steps: who answers for the role, its lifecycle, its permissions, the improvements role mining suggests. The wizard then shows only those.
 - **Which business roles** — whole **role portfolios**, business roles one by one, or both. A portfolio is read again when each round starts, so a role added to it joins the next round.
 - **When** — once, or on a schedule (every month, quarter, half year or year), from a start date, with a number of days to do the review.
 

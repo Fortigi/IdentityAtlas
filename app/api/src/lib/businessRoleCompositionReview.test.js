@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  reviewSummary, presentReview, loadCompositionReviews, saveCompositionReview, resolveProposal, searchPeople,
+  reviewSummary, presentReview, loadCompositionReviews, saveCompositionReview, resolveProposal, searchPeople, settleImprovements, SUGGESTIONS_CHANGED,
   REVIEWS_SQL, INSERT_REVIEW_SQL, INSERT_STEP_SQL, PRINCIPAL_NAMES_SQL, IDENTITY_NAMES_SQL, PEOPLE_SQL,
   HISTORY_LIMIT, PEOPLE_LIMIT,
 } from './businessRoleCompositionReview.js';
@@ -40,7 +40,8 @@ describe('reviewSummary', () => {
   it('has no latest review while nobody reviewed the role, and always names the steps and verdicts', () => {
     const out = reviewSummary([], picture([]));
     expect(out.latestReview).toBeNull();
-    expect(out.steps).toEqual(['ownership', 'lifecycle', 'contents']);
+    expect(out.steps).toEqual(['ownership', 'lifecycle', 'contents', 'improvements']);
+    expect(out.decisions).toEqual(['adopt', 'decline', 'notUnderstood']);
     expect(out.verdicts).toEqual(['good', 'needsChange', 'notUnderstood']);
   });
 });
@@ -202,5 +203,36 @@ describe('searchPeople', () => {
     query.mockResolvedValue({ rows: [] });
     await searchPeople('an', { pool: { query } });
     expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('settleImprovements', () => {
+  const found = (keys) => ({ suggestions: keys.map(key => ({ key, kind: 'addPermission', confidence: 100 })), declinedBefore: 2, since: '2026-10-01T00:00:00.000Z' });
+  const decided = (pairs, verdict = 'good') => ({ step: 'improvements', verdict, remark: '', proposal: null, decisions: pairs.map(([key, decision]) => ({ key, decision })) });
+
+  it('stores the suggestions as role mining makes them, each with its decision, declines too', () => {
+    const out = settleImprovements(decided([['b', 'decline'], ['a', 'adopt']], 'needsChange'), found(['a', 'b']));
+    expect(out).toEqual({
+      step: 'improvements', verdict: 'needsChange', remark: '',
+      proposal: {
+        suggestions: [
+          { key: 'a', kind: 'addPermission', confidence: 100, decision: 'adopt' },
+          { key: 'b', kind: 'addPermission', confidence: 100, decision: 'decline' },
+        ],
+        declinedBefore: 2,
+        since: '2026-10-01T00:00:00.000Z',
+      },
+    });
+  });
+
+  it('stores nothing when nothing was suggested', () => {
+    expect(settleImprovements(decided([]), found([]))).toEqual({ step: 'improvements', verdict: 'good', remark: '', proposal: null });
+  });
+
+  it('refuses decisions on other suggestions, one too few, or one too many', () => {
+    expect(settleImprovements(decided([['x', 'adopt']]), found(['a']))).toEqual({ error: SUGGESTIONS_CHANGED });
+    expect(settleImprovements(decided([['a', 'adopt']]), found(['a', 'b']))).toEqual({ error: SUGGESTIONS_CHANGED });
+    expect(settleImprovements(decided([['a', 'adopt'], ['b', 'adopt']]), found(['a']))).toEqual({ error: SUGGESTIONS_CHANGED });
+    expect(settleImprovements(decided([['a', 'adopt']]), found([]))).toEqual({ error: SUGGESTIONS_CHANGED });
   });
 });

@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "4.1.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/4.1.0> ;
+    owl:versionInfo "4.2.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/4.2.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -1879,7 +1879,7 @@ ia:snapshot a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
 
 ia:CompositionReviewStep a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Composition review step" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, or the permissions it contains. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). Never changed after it is saved, and deleted with its review." ;
+    rdfs:comment "The verdict a composition review (reviewId) gives one step: who answers for the role, its lifecycle, the permissions it contains, or the improvements role mining suggests. One row per step, at most one per step in a review; the steps a review has are the steps that were asked. A change says what should change (remark) or, on the ownership step, who it should be (proposal). On the improvements step the verdict follows from the reviewer's decision on each suggestion, kept in proposal. Never changed after it is saved, and deleted with its review." ;
     ia:table "BusinessRoleCompositionReviewSteps" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 ia:ReviewStep a owl:Class ;
@@ -1894,6 +1894,9 @@ ia:ReviewStep_lifecycle a owl:NamedIndividual, ia:ReviewStep ; ia:typeValue "lif
 ia:ReviewStep_contents a owl:NamedIndividual, ia:ReviewStep ; ia:typeValue "contents" ;
     rdfs:label "contents" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The permissions the role contains." .
+ia:ReviewStep_improvements a owl:NamedIndividual, ia:ReviewStep ; ia:typeValue "improvements" ;
+    rdfs:label "improvements" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What role mining suggests to make the role better, only when it is at least 95% sure: a permission every holder has themselves that nobody else has and no business role contains (or, new since the last review, one within 95% of that), or for a role handed out by hand a rule on department, job title or company that picks the people who hold it. The reviewer proposes or declines each suggestion, or asks about it. Nothing suggested is an answer too." .
 
 ia:ReviewVerdict a owl:Class ;
     rdfs:label "Review verdict" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1929,12 +1932,12 @@ ia:remark a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:CompositionReviewStep ;
     rdfs:range xsd:string ;
     rdfs:label "remark" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good." .
+    rdfs:comment "The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good. On the improvements step: what the reviewer adds to the suggestions they propose, or their question about one." .
 ia:proposal a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
     rdfs:domain ia:CompositionReviewStep ;
     rdfs:range rdf:JSON ;
     rdfs:label "proposal" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId | identityId, displayName } | null, responsible: [{ principalId | identityId, displayName }] }. A proposal: the review changes nobody." .
+    rdfs:comment "On the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId | identityId, displayName } | null, responsible: [{ principalId | identityId, displayName }] }. On the improvements step, whatever the verdict: the suggestions as role mining made them when the review was signed, each with the reviewer's decision — { suggestions: [{ key, kind (addPermission | automaticRule), confidence, exact, ..., decision (adopt | decline | notUnderstood) }], declinedBefore, since }; empty when nothing was suggested. A proposal: the review changes nobody and nothing." .
 
 # ─── Review campaigns ────────────────────────────────────────────────────────
 # A campaign asks the people who answer for a set of business roles to review

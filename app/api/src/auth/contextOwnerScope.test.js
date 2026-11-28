@@ -313,6 +313,12 @@ describe('a business role\'s composition reviews', () => {
     expect(verdict('GET', `${path}/users`)).toBe(DENY);
   });
 
+  it('lets the role-mining suggestions of a review be read, never written', () => {
+    expect(verdict('GET', `${path}/improvements`)).toEqual({ allow: false, ownedRole: ROLE });
+    expect(verdict('POST', `${path}/improvements`)).toBe(DENY);
+    expect(verdict('GET', `${path}/improvements/x`)).toBe(DENY);
+  });
+
   it('ownedRoleVerdict is null for any other path', () => {
     expect(ownedRoleVerdict('GET', `/api/access-package/${ROLE}`)).toBeNull();
   });

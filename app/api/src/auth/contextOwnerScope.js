@@ -63,7 +63,7 @@ export const CONTEXT_PATHS = [
 // merely holds. The verdict hands the role to the caller as `ownedRole`.
 export const OWNED_ROLE_PATHS = [new RegExp(`^/api/access-package/${UUID}/composition-reviews$`)];
 // The people a review can propose as an owner: read only, same condition.
-export const OWNED_ROLE_READ_PATHS = [new RegExp(`^/api/access-package/${UUID}/composition-reviews/people$`)];
+export const OWNED_ROLE_READ_PATHS = [new RegExp(`^/api/access-package/${UUID}/composition-reviews/(people|improvements)$`)];
 
 export function ownedRoleVerdict(method, path) {
   if (method !== 'GET' && method !== 'POST') return null;

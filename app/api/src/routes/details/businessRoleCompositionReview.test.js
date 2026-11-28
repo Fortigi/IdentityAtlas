@@ -31,6 +31,10 @@ vi.mock('../../lib/reviewCampaigns.js', () => ({
   answerRequests: async (me, roleId, review) => { campaigns.answered.push([me, roleId, review.id]); return campaigns.open.length; },
 }));
 const pictures = vi.hoisted(() => ({ now: null }));
+const mining = vi.hoisted(() => ({ result: null, fail: null, calls: [] }));
+vi.mock('../../lib/roleImprovements.js', () => ({
+  findImprovements: async (roleId) => { mining.calls.push(roleId); if (mining.fail) throw mining.fail; return mining.result; },
+}));
 vi.mock('../../lib/businessRoleSnapshot.js', async (orig) => ({ ...(await orig()), takeSnapshot: vi.fn(async () => pictures.now) }));
 
 const { default: router, mayReview, askedRequests } = await import('./businessRoleCompositionReview.js');
@@ -168,7 +172,7 @@ describe('reading', () => {
     expect(res.body.current).toEqual(picture([FIN]));
     expect(res.body.reviews[0].outcome).toBe('findings');
     expect(res.body.latestReview).toMatchObject({ id: 'r1', reviewedBy: 'bob@example.test', outcome: 'findings', changesSince: { added: ['SG-Finance'], removed: [] } });
-    expect(res.body.steps).toEqual(['ownership', 'lifecycle', 'contents']);
+    expect(res.body.steps).toEqual(['ownership', 'lifecycle', 'contents', 'improvements']);
     expect(res.body.canReview).toBe(true);
   });
 
@@ -347,5 +351,64 @@ describe('looking up people to propose', () => {
     query.mockRejectedValue(new Error('down'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     expect((await request(app).get(`${people}?search=car`)).status).toBe(500);
+  });
+});
+
+describe('role-mining suggestions', () => {
+  const improvements = `${url}/improvements`;
+  const FOUND = { suggestions: [{ key: 'permission:g9', kind: 'addPermission', confidence: 100 }], declinedBefore: 0, handedOutByHand: true, holderCount: 6 };
+  beforeEach(() => {
+    Object.assign(mining, { result: FOUND, fail: null, calls: [] });
+    tx.mockReset();
+  });
+
+  it('gives the reviewer what role mining suggests for this role', async () => {
+    roleExists();
+    const res = await request(app).get(improvements);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(FOUND);
+    expect(mining.calls).toEqual([ROLE]);
+  });
+
+  it('is closed to someone who may not review this role, and open to its owner', async () => {
+    roleExists();
+    caller.user = READER;
+    expect((await request(app).get(improvements)).status).toBe(403);
+    expect(mining.calls).toEqual([]);
+    Object.assign(world, { ownerReview: true, owns: true });
+    expect((await request(app).get(improvements)).status).toBe(200);
+  });
+
+  it('404 while the feature is off and for something that is not a business role', async () => {
+    world.feature = false;
+    expect((await request(app).get(improvements)).status).toBe(404);
+    world.feature = true;
+    queryOne.mockResolvedValue(null);
+    expect((await request(app).get(improvements)).status).toBe(404);
+    expect(mining.calls).toEqual([]);
+  });
+
+  it('500 when role mining fails', async () => {
+    roleExists();
+    mining.fail = new Error('down');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).get(improvements)).status).toBe(500);
+  });
+
+  it('saves the decisions on the suggestions as role mining makes them when the review is signed', async () => {
+    roleExists();
+    tx.mockImplementation(async (fn) => fn({ query: async (sql, params) => ({ rows: [{ id: 'r-9', notes: params[1] }] }) }));
+    const res = await request(app).post(url).send({ steps: [{ step: 'improvements', decisions: [{ key: 'permission:g9', decision: 'adopt' }] }] });
+    expect(res.status).toBe(201);
+    expect(res.body.steps[0]).toMatchObject({ step: 'improvements', verdict: 'needsChange', proposal: { suggestions: [{ key: 'permission:g9', decision: 'adopt' }] } });
+    expect(mining.calls).toEqual([ROLE]);
+  });
+
+  it('400 when the reviewer decided on suggestions role mining no longer makes', async () => {
+    roleExists();
+    const res = await request(app).post(url).send({ steps: [{ step: 'improvements', decisions: [{ key: 'permission:gone', decision: 'adopt' }] }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/suggestions changed/);
+    expect(tx).not.toHaveBeenCalled();
   });
 });

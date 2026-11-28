@@ -1,0 +1,4 @@
+- Composition review (experimental): a new step, Improvements, just before signing, with what role mining suggests to make the business role better — only when it is at least 95% sure, and without AI
+- It suggests a permission every holder of the role has and nobody else has, a new permission (since the last review) that nearly every holder has, or, for a role handed out by hand, a rule on department, job title or company that would hand it out to the right people
+- Each suggestion shows how sure it is and why; the reviewer proposes it, declines it or asks about it. When nothing is that sure, the step says so plainly
+- A suggestion declined in the last review is not asked again; review campaigns can ask this step like the others

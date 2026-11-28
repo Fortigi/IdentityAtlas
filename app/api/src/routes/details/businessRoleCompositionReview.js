@@ -8,6 +8,10 @@
 //   GET  /api/access-package/:id/composition-reviews/people?search=
 //                                                       people the reviewer can propose as an
 //                                                       owner: name and e-mail, a short list
+//   GET  /api/access-package/:id/composition-reviews/improvements
+//                                                       what role mining suggests to improve the
+//                                                       role (lib/roleImprovements.js): only
+//                                                       suggestions of 95% and up, maybe none
 //
 // Experimental (feature flag `compositionReview`): while it is off both answer
 // 404. A review is a certification decision, so writing takes the permission
@@ -22,7 +26,7 @@
 // GET tells an asked person what they are asked (`request`: the campaign, its
 // steps, when it is due), and a review they save answers that request.
 //
-// The people lookup is open to exactly those who may review this role: a role's
+// The people lookup and the suggestions are open to exactly those who may review this role: a role's
 // owner has no other way to find a colleague (a context owner cannot list users).
 //
 // The gate runs before the flag, so a caller without the right is refused 403
@@ -38,6 +42,7 @@ import { getRelativePolicy } from '../../auth/contextOwnerSetting.js';
 import { BUSINESS_ROLE_SUBJECT, rolesAllowing } from '../../auth/relativePermissions.js';
 import { loadCompositionReviews, saveCompositionReview, searchPeople } from '../../lib/businessRoleCompositionReview.js';
 import { parseReviewBody } from '../../lib/compositionReviewSteps.js';
+import { findImprovements } from '../../lib/roleImprovements.js';
 import { openRequestsFor, answerRequests } from '../../lib/reviewCampaigns.js';
 import { requireRole, failed } from './businessRoleOwners.js';
 
@@ -107,6 +112,12 @@ router.get('/access-package/:id/composition-reviews/people', reviewGate, feature
   try {
     res.json({ data: await searchPeople(typeof req.query.search === 'string' ? req.query.search : '') });
   } catch (err) { failed(res, 'Looking up people for the review', err); }
+});
+
+router.get('/access-package/:id/composition-reviews/improvements', reviewGate, feature, requireRole, async (req, res) => {
+  try {
+    res.json(await findImprovements(req.params.id));
+  } catch (err) { failed(res, 'Looking for improvements to the role', err); }
 });
 
 export default router;

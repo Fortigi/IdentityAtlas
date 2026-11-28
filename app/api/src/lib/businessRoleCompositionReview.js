@@ -9,8 +9,9 @@
 import * as db from '../db/connection.js';
 import { likeContains } from '../db/sqlParams.js';
 import { takeSnapshot, compareSnapshots } from './businessRoleSnapshot.js';
+import { findImprovements } from './roleImprovements.js';
 import {
-  STEPS, VERDICTS, OWNERSHIP, orderSteps, outcomeOf, ownersOfSnapshot, sameOwners, unexplainedChange,
+  STEPS, VERDICTS, DECISIONS, OWNERSHIP, IMPROVEMENTS, orderSteps, outcomeOf, ownersOfSnapshot, sameOwners, unexplainedChange,
 } from './compositionReviewSteps.js';
 
 export const HISTORY_LIMIT = 50;
@@ -71,6 +72,7 @@ export function reviewSummary(rows, current) {
     latestReview: latest ? { ...latest, changesSince: compareSnapshots(latest.snapshot, current) } : null,
     steps: STEPS,
     verdicts: VERDICTS,
+    decisions: DECISIONS,
   };
 }
 
@@ -106,6 +108,30 @@ export async function resolveProposal(proposal, { pool = db } = {}) {
   return { accountable, responsible };
 }
 
+export const SUGGESTIONS_CHANGED = 'The suggestions changed while you were reviewing. Open the step Improvements again and decide on what it shows now.';
+
+/**
+ * The improvements step with the suggestions as role mining makes them now and
+ * the reviewer's decision on each, or { error } when the reviewer decided on
+ * other suggestions than these (the data moved on while they reviewed). With
+ * nothing suggested there is nothing to store.
+ */
+export function settleImprovements(step, found) {
+  const byKey = new Map(step.decisions.map(d => [d.key, d.decision]));
+  const keys = found.suggestions.map(s => s.key);
+  if (byKey.size !== keys.length || !keys.every(k => byKey.has(k))) return { error: SUGGESTIONS_CHANGED };
+  const { decisions: _decisions, ...rest } = step;
+  if (keys.length === 0) return { ...rest, proposal: null };
+  return {
+    ...rest,
+    proposal: {
+      suggestions: found.suggestions.map(s => ({ ...s, decision: byKey.get(s.key) })),
+      declinedBefore: found.declinedBefore,
+      since: found.since,
+    },
+  };
+}
+
 // The ownership step with its proposal resolved against the directory and the
 // role as it is now. A proposal that names the people who answer for the role
 // already proposes nothing, and is dropped.
@@ -116,9 +142,15 @@ async function settleStep(step, picture, pool) {
   return proposal ? { ...step, proposal } : null;
 }
 
-async function settleSteps(steps, picture, pool) {
+async function settleSteps(steps, picture, { roleId, pool, improvements }) {
   const out = [];
   for (const step of steps) {
+    if (step.step === IMPROVEMENTS) {
+      const settled = settleImprovements(step, await improvements(roleId, { pool }));
+      if (settled.error) return settled;
+      out.push(settled);
+      continue;
+    }
     const settled = await settleStep(step, picture, pool);
     if (!settled) return { error: 'Choose the people from the list: one of them is not in the directory any more' };
     out.push(settled);
@@ -132,9 +164,9 @@ async function settleSteps(steps, picture, pool) {
  * role right now. Returns the review as the API gives it, or { error } when a
  * step asks for a change without saying which.
  */
-export async function saveCompositionReview(roleId, { steps, notes }, { by, byName }, { pool = db, snapshot = takeSnapshot, tx = db.tx } = {}) {
+export async function saveCompositionReview(roleId, { steps, notes }, { by, byName }, { pool = db, snapshot = takeSnapshot, tx = db.tx, improvements = findImprovements } = {}) {
   const picture = await snapshot(roleId);
-  const settled = await settleSteps(steps, picture, pool);
+  const settled = await settleSteps(steps, picture, { roleId, pool, improvements });
   if (settled.error) return settled;
   const saved = await tx(async (client) => {
     const { rows } = await client.query(INSERT_REVIEW_SQL, [roleId, notes, by, byName ?? null, JSON.stringify(picture)]);
