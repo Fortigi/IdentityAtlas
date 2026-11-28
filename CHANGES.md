@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a monthly documentation audit: once a month (and on demand) all hand-written documentation, the coding guides and the ontology are checked against the code, and every place where the docs would mislead a reader is filed as a GitHub issue, ready to be picked up by the bug pipeline. Issues are not filed twice, and a finding closed as "not planned" is never filed again.
+
+## Changes in this PR
+
 - Corrected the API documentation of a user's and a group's business roles, the matrix's business-role columns and the business roles list: the documented responses now match what the API returns, including the role portfolio a business role sits in and how the role is gained and lost
 - Documented that the context-roles ingest endpoint accepts role portfolios and has a reconciling mode that removes roles the source no longer states
 - Corrected the documentation of relative permissions: access is set per template and role in the grid, sub-units only count where Sub-units is ticked, MCP access follows the grid's MCP cells, and matrix-share recipients are not a relative permission

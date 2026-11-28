@@ -1,1 +1,0 @@
-- Added a monthly documentation audit: once a month (and on demand) all hand-written documentation, the coding guides and the ontology are checked against the code, and every place where the docs would mislead a reader is filed as a GitHub issue, ready to be picked up by the bug pipeline. Issues are not filed twice, and a finding closed as "not planned" is never filed again.
