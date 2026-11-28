@@ -9,7 +9,8 @@ import { reviewWarnings } from './accessModel';
 // The essentials: who answers for it, what it contains and who holds it — the
 // last two folded to one line each, with their count — and a warning when its
 // review was missed or none is set up. How people get, keep and lose the role
-// is on the Lifecycle tab, which the warning links to.
+// is on the Lifecycle tab, which the warning links to. `notice` sits on top: the
+// page puts "a review is waiting for you" there.
 
 function ReviewWarning({ warnings, onOpenLifecycle }) {
   if (warnings.length === 0) return null;
@@ -30,7 +31,7 @@ function ReviewWarning({ warnings, onOpenLifecycle }) {
 
 const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpenTab }) {
+export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpenTab, notice = null }) {
   const [open, setOpen] = useState(() => new Set());
   const toggle = (key) => (next) => setOpen(prev => {
     const s = new Set(prev);
@@ -41,6 +42,7 @@ export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpe
   const people = data.assignmentCount ?? 0;
   return (
     <div className="space-y-4">
+      {notice}
       <ReviewWarning warnings={reviewWarnings(data)} onOpenLifecycle={() => onOpenTab('lifecycle')} />
       <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
         <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Who answers for this role</h3>

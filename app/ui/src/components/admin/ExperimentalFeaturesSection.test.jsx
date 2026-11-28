@@ -254,7 +254,7 @@ describe('ExperimentalFeaturesSection', () => {
       const { authFetch } = render(true, undefined, false);
       const sw = await screen.findByRole('switch', { name: 'Composition review' });
       await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'));
-      expect(screen.getByText(/reviews already saved are kept/)).toBeInTheDocument();
+      expect(screen.getByText(/reviews and campaigns already saved are kept/)).toBeInTheDocument();
       await userEvent.click(sw);
       await waitFor(() => expect(reload).toHaveBeenCalled());
       const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));

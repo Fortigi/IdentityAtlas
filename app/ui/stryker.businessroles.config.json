@@ -31,6 +31,13 @@
     "src/components/businessRoles/review/HoldersPanel.jsx",
     "src/components/businessRoles/review/ReviewRecord.jsx",
     "src/components/businessRoles/review/reviewSteps.js",
+    "src/components/businessRoles/review/ReviewRequestNotice.jsx",
+    "src/components/reviewCampaigns/campaigns.js",
+    "src/components/reviewCampaigns/CampaignForm.jsx",
+    "src/components/reviewCampaigns/CampaignDetail.jsx",
+    "src/components/reviewCampaigns/ReviewsPage.jsx",
+    "src/components/contextOwner/ReviewRequestsBanner.jsx",
+    "src/contexts/ReviewRequestsContext.jsx",
     "src/components/businessRoles/RoleSnapshot.jsx",
     "src/components/businessRoles/OwnerRolePage.jsx",
     "src/components/businessRoles/accessModel.js",
@@ -44,6 +51,8 @@
   "tests": [
     "src/components/businessRoles/*.test.{js,jsx}",
     "src/components/businessRoles/review/*.test.{js,jsx}",
+    "src/components/reviewCampaigns/*.test.{js,jsx}",
+    "src/components/ContextOwnerPage.reviewRequests.mount.test.jsx",
     "src/components/contextOwner/ownerPortfolios.test.js"
   ],
   "thresholds": {

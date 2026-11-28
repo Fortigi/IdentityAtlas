@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   formatDate,
   formatDateOnly,
+  formatUtcDay,
   formatDurationSeconds,
   formatDurationMs,
   formatRelativeTime,
@@ -259,5 +260,26 @@ describe('formatBytes', () => {
   it('treats a missing size as 0 B', () => {
     expect(formatBytes(undefined)).toBe('0 B');
     expect(formatBytes(null)).toBe('0 B');
+  });
+});
+
+// ─── formatUtcDay ───────────────────────────────────────────────────────────────
+describe('formatUtcDay', () => {
+  const day = (value) => new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+  it('shows the UTC day of a moment at the very end of that day, and of one at its start', () => {
+    expect(formatUtcDay('2026-12-31T23:59:59Z')).toBe(day('2026-12-31T12:00:00Z'));
+    expect(formatUtcDay('2027-01-01T00:00:00Z')).toBe(day('2027-01-01T12:00:00Z'));
+    expect(formatUtcDay('2026-12-31T23:59:59Z')).not.toBe(formatUtcDay('2027-01-01T00:00:00Z'));
+  });
+
+  it('reads a plain day as that day', () => {
+    expect(formatUtcDay('2026-12-01')).toBe(day('2026-12-01T12:00:00Z'));
+  });
+
+  it('is empty for nothing and gives back what is not a date', () => {
+    expect(formatUtcDay('')).toBe('');
+    expect(formatUtcDay(null)).toBe('');
+    expect(formatUtcDay('soon')).toBe('soon');
   });
 });

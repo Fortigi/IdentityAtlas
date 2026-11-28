@@ -38,6 +38,9 @@ export const PERMISSIONS = Object.freeze({
   'data.write.certifications': { label: 'Certification decisions', group: 'Write',
     description: 'Review a business role step by step (who answers for it, its lifecycle, what it contains) and sign the review. Certification decisions from the source are still ingested by the crawlers.' },
 
+  'data.write.review-campaigns': { label: 'Review campaigns', group: 'Write',
+    description: 'Set up campaigns that ask the Accountable of business roles to review them, and follow their progress on the Reviews tab (experimental, part of Composition review). Doing a review a campaign asks of you needs no permission.' },
+
   'admin.crawlers':            { label: 'Crawler configuration',   group: 'Admin',
     description: 'Create / edit / run crawlers, manage crawler API keys and schedules.' },
   'admin.systems':             { label: 'Systems configuration',   group: 'Admin',

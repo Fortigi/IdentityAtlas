@@ -64,7 +64,8 @@ describe('ContextOwnerPage: the tree', () => {
     expect(await screen.findByRole('heading', { name: 'CTO unit', level: 2 })).toBeInTheDocument();
     expect(await screen.findByRole('tab', { name: /Applications/ })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /^Tags/ })).toBeNull();
-    expect(tree().getByText('Development')).toBeInTheDocument();
+    // The tree draws after the tabs; wait for it rather than race it.
+    expect(await within(await screen.findByRole('navigation', { name: 'What you answer for' })).findByText('Development')).toBeInTheDocument();
     expect(tree().queryByText('Azure')).toBeNull();
   });
 

@@ -196,6 +196,26 @@ erDiagram
         string resourceType "open vocabulary"
         int systemId FK
     }
+    ReviewCampaignRequests {
+        uuid id PK
+        uuid resourceId FK
+        uuid reviewId FK
+        uuid roundId FK
+    }
+    ReviewCampaignRounds {
+        uuid id PK
+        uuid campaignId FK
+    }
+    ReviewCampaignScopes {
+        uuid id PK
+        uuid campaignId FK
+        uuid contextId FK
+        uuid resourceId FK
+    }
+    ReviewCampaigns {
+        uuid id PK
+        string reviewKind "BusinessRoleComposition"
+    }
     Systems {
         int id PK
         int directorySystemId FK
@@ -257,6 +277,13 @@ erDiagram
     Resources |o--o{ ResourceRelationships : "parentResourceId"
     Systems |o--o{ ResourceRelationships : "systemId"
     Systems |o--o{ Resources : "systemId"
+    Resources |o--o{ ReviewCampaignRequests : "resourceId"
+    BusinessRoleCompositionReviews |o--o{ ReviewCampaignRequests : "reviewId"
+    ReviewCampaignRounds |o--o{ ReviewCampaignRequests : "roundId"
+    ReviewCampaigns |o--o{ ReviewCampaignRounds : "campaignId"
+    ReviewCampaigns |o--o{ ReviewCampaignScopes : "campaignId"
+    Contexts |o--o{ ReviewCampaignScopes : "contextId"
+    Resources |o--o{ ReviewCampaignScopes : "resourceId"
     Systems |o--o{ Systems : "directorySystemId"
 ```
 <!-- END GENERATED: ontology core-erd -->

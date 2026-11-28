@@ -53,6 +53,16 @@ describe('pageRegistry', () => {
     expect(resolvePageRoute('reports')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
   });
 
+  it('renders the Reviews page only while Composition review is on, a notice otherwise', () => {
+    const on = resolvePageRoute('reviews')({ ...ctx, features: { compositionReview: true } });
+    expect(on.type).not.toBe('p');
+    for (const features of [{}, { compositionReview: false }, undefined]) {
+      const off = resolvePageRoute('reviews')({ ...ctx, features });
+      expect(off.type).toBe('p');
+      expect(off.props.children).toBe('Reviews are not switched on for this installation.');
+    }
+  });
+
   it('renders the systems page without needing any context', () => {
     // The systems entry takes no ctx — calling it with undefined must not throw.
     expect(isValidElement(resolvePageRoute('systems')())).toBe(true);

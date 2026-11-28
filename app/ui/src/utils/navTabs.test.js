@@ -84,6 +84,16 @@ describe('navTabs', () => {
     expect(shown).toContain('admin');
   });
 
+  it('shows Reviews while Composition review is on, to whoever may manage review campaigns', () => {
+    const on = { features: { ...ENABLE_ALL_FEATURES, compositionReview: true }, visibleTabs: [], canSeeAdmin: true };
+    const shown = keys(computeNavTabs(on));
+    expect(shown).toContain('reviews');
+    expect(shown.indexOf('reviews')).toBe(shown.indexOf('reports') + 1);
+    expect(keys(computeNavTabs({ ...on, canSeeReviews: false }))).not.toContain('reviews');
+    expect(keys(computeNavTabs({ ...on, features: ENABLE_ALL_FEATURES }))).not.toContain('reviews');
+    expect(keys(availableOptionalTabs(on.features))).not.toContain('reviews');
+  });
+
   it('still gates the Admin tab on permission and feature flags', () => {
     const noAdmin = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: false }));
     expect(noAdmin).not.toContain('admin');

@@ -78,6 +78,7 @@ import crawlerFilesRouter from './routes/crawlerFiles.js';
 import dataExportRouter from './routes/dataExport.js';
 import bulkListsRouter from './routes/bulkLists.js';
 import updatesRouter from './routes/updates.js';
+import reviewCampaignsRouter from './routes/reviewCampaigns.js';
 import { isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
 import { isSchemaReady } from './startupState.js';
 import swaggerUi from 'swagger-ui-express';
@@ -451,6 +452,9 @@ export function createApp() {
   app.use('/api', authMiddleware, bulkListsRouter);
   // Auto-update status/intent/log + the admin toggle (admin.systems gated writes)
   app.use('/api', authMiddleware, updatesRouter);
+  // Review campaigns (experimental, compositionReview flag; the Reviews tab).
+  // Managing is gated per-route on data.write.review-campaigns; what the caller is asked is their own.
+  app.use('/api', authMiddleware, reviewCampaignsRouter);
   // Read API token CRUD + Excel workbook download (admin-scoped). Per-handler
   // gates in the router separate "create your own token" (data.export.apikey)
   // from "list/revoke any token in tenant" (admin.read-tokens) and the workbook

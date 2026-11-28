@@ -283,6 +283,24 @@ On each step you choose **Good**, **Needs a change** or **I do not understand wh
 - Reviewing needs the **Certification decisions** permission (`data.write.certifications`) — or answering for the role (its **Accountable** or **Responsible**, through any of your accounts) where **Admin → Roles & Permissions → Relative permissions** ticks **Composition review** for their role (Accountable or Responsible) on the Business roles row. Anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`). Whoever may review a role may also look up people to propose as its owner (`GET /api/access-package/:id/composition-reviews/people?search=`): name and e-mail of at most ten matching user accounts.
 - In the ontology it is `ia:CompositionReview` with its `ia:CompositionReviewStep`s ([core model](../reference/core-model.md)).
 
+### Review campaigns
+
+A **review campaign** asks people to do that composition review, instead of waiting for them to think of it. You set one up on the top-level **Reviews** tab (permission **Review campaigns**, `data.write.review-campaigns`; experimental, part of Composition review — the tab shows only while that is on, and only to whoever holds the permission):
+
+- **What to review** — any of the three steps: who answers for the role, its lifecycle, its permissions. The wizard then shows only those.
+- **Which business roles** — whole **role portfolios**, business roles one by one, or both. A portfolio is read again when each round starts, so a role added to it joins the next round.
+- **When** — once, or on a schedule (every month, quarter, half year or year), from a start date, with a number of days to do the review.
+
+**Who is asked** is the **Accountable** of each role — whoever that is at the moment of looking, so a new Accountable inherits the request. A role with **nobody Accountable** is in scope but **outside the campaign**: nobody is asked. The form says how many such roles there are before you start, the list counts them, and the campaign shows them apart with a note to set an Accountable.
+
+What the Accountable sees: after signing in, a notice right under the header — how many business roles wait for their review, by when, and a button per role. The role is marked under **Role portfolios**, its page says which campaign asks and by when, and **Start the review** opens the wizard. Nothing is sent: no e-mail, no message.
+
+- **Being asked is the right to answer.** An Accountable asked by a campaign may do that review also where the relative permissions give their role no Composition review. Signing in and opening the role is still the relative permissions' (View for Accountable on the Business roles row); the campaign warns when that is off.
+- **One review answers the request.** The review of the asked person closes every open request for that role whose campaign asked no step the review left out. A review by somebody else (an analyst with the Certification decisions permission) is a review of the role, but answers no request.
+- **Rounds.** Each time a campaign asks is a round, due at the end of its last day. A request not answered by then reads **Late** and stays open until the next round starts; only the newest round is open. A round is made the first time anybody looks on or after its first day.
+- **Progress** per role: waiting, late, reviewed without findings, reviewed with findings, or nobody to ask. **End the campaign** stops asking and closes its open requests; **Delete** removes the campaign with its rounds. The reviews themselves always stay.
+- In the ontology: `ia:ReviewCampaign`, `ia:ReviewCampaignScope`, `ia:ReviewCampaignRound` and `ia:ReviewCampaignRequest` (migration 121).
+
 ---
 
 ## How governance data is ingested

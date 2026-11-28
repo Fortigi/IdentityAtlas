@@ -28,6 +28,7 @@ export const ALL_NAV_TABS = [
   { key: 'identities',       label: 'Identities',   feature: 'accountLinking', optional: true },
   { key: 'contexts',         label: 'Contexts',     optional: true },
   { key: 'reports',          label: 'Reports' },
+  { key: 'reviews',          label: 'Reviews',      feature: 'compositionReview' },
   { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'admin',            label: 'Admin' },
 ];
@@ -38,15 +39,18 @@ export const ALL_NAV_TABS = [
 //     have loaded; while `visibleTabs` is null we don't hide them, to avoid a
 //     flash of removal before prefs arrive)
 //   - Admin drops out for users without admin permission
+//   - Reviews drops out for users who may not manage review campaigns (an
+//     Accountable asked to review is told so on the role itself, not here)
 //
 // Shared matrices is deliberately NOT here: managing and revoking other
 // people's share links is administration, so it lives as an Admin sub-tab
 // (see components/admin/adminTabs.js) rather than as a twelfth top-level tab.
-export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true } = {}) {
+export function computeNavTabs({ features = {}, visibleTabs = null, canSeeAdmin = true, canSeeReviews = true } = {}) {
   return ALL_NAV_TABS.filter(tab => {
     if (tab.feature && !features[tab.feature]) return false;
     if (tab.optional && visibleTabs && !visibleTabs.includes(tab.key)) return false;
     if (tab.key === 'admin' && !canSeeAdmin) return false;
+    if (tab.key === 'reviews' && !canSeeReviews) return false;
     return true;
   });
 }

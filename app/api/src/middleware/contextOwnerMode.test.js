@@ -50,6 +50,8 @@ vi.mock('../contexts/memberReferences.js', () => ({
 
 vi.mock('../db/connection.js');
 const { query, queryOne } = await import('../db/connection.js');
+// Whether a review campaign asks the owner to review their role (the business-role tests flip it).
+const asked = { open: false };
 const { resetContextOwnerSettingForTests } = await import('../auth/contextOwnerSetting.js');
 const { legacyPolicy, rolesAllowing } = await import('../auth/relativePermissions.js');
 const { CONTEXT_OWNER_DENIED } = await import('../auth/contextOwnerScope.js');
@@ -579,7 +581,12 @@ describe('the business roles a context owner answers for', () => {
   beforeEach(async () => {
     current = {};
     owners.resolveContextOwner = vi.fn(async (user, { policy }) => (user.oid === OWNER_OID ? { ...OWNER, businessRoles: heldRoles(policy), me } : null));
-    query.mockImplementation(async (sql) => (/FROM "BusinessRoleOwners" o/.test(sql) ? { rows: [OWNED_ROLE] } : { rows: [], rowCount: 0 }));
+    // The roles they answer for; `asked.open` adds a campaign request for one of them.
+    query.mockImplementation(async (sql) => {
+      if (/FROM "ReviewCampaignRequests" q/.test(sql)) return { rows: asked.open ? [{ id: 'q-1', roleId: ROLE, steps: ['contents'] }] : [], rowCount: 0 };
+      return /FROM "BusinessRoleOwners" o/.test(sql) ? { rows: [OWNED_ROLE] } : { rows: [], rowCount: 0 };
+    });
+    asked.open = false;
     await switches({ enabled: true });
   });
 
@@ -611,6 +618,13 @@ describe('the business roles a context owner answers for', () => {
     expect((await ownerGet('/api/auth-me')).body.contextOwner).toEqual({ contexts: [], contextIds: [], businessRoles: [OWNED_ROLE] });
     expect(denied(await ownerGet(reviews(ROLE)))).toBe(false);
     expect(denied(await ownerGet('/api/contexts/' + MINE))).toBe(true);
+  });
+
+  it('save a composition review a campaign asks of them, also where the grid gives no review', async () => {
+    await switches({ businessRoles: true });
+    asked.open = true;
+    expect((await ownerPost(reviews(ROLE))).status).not.toBe(403);
+    expect((await ownerGet('/api/review-requests/mine')).status).not.toBe(403);
   });
 
   it('save a composition review only where the grid gives their role review', async () => {

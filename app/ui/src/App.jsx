@@ -8,7 +8,7 @@ import { useMatrix } from './hooks/useMatrix';
 import { useHashPage } from './hooks/useHashPage';
 import { useDetailTabs } from './hooks/useDetailTabs';
 import { useAuth } from './auth/AuthGate';
-import { useCanSeeAdminTab } from './auth/usePermissions';
+import { useCanSeeAdminTab, useHasPermission } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
 import { useAttributeLabels } from './hooks/useAttributeLabels';
 import { ThemeContext } from './contexts/ThemeContext';
@@ -107,10 +107,12 @@ export default function App() {
   // than to let them find a locked one. The Auth → Roles & Permissions
   // page inside Admin further self-gates by admin.auth.
   const canSeeAdmin = useCanSeeAdminTab();
+  // Reviews (review campaigns) is for whoever may manage them.
+  const canSeeReviews = useHasPermission('data.write.review-campaigns');
 
   const navTabs = useMemo(
-    () => computeNavTabs({ features, visibleTabs, canSeeAdmin }),
-    [features, visibleTabs, canSeeAdmin]
+    () => computeNavTabs({ features, visibleTabs, canSeeAdmin, canSeeReviews }),
+    [features, visibleTabs, canSeeAdmin, canSeeReviews]
   );
 
   // Available optional tabs (respecting feature flags)

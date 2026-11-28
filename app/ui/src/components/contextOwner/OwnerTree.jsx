@@ -9,6 +9,7 @@
 // portfolio's name, in the same light colour, or under "Default portfolio".
 
 import { useMemo } from 'react';
+import { useReviewRequests } from '@ui/contexts/ReviewRequestsContext';
 import ContextTreeView from '@ui/components/contexts/ContextTreeView';
 import RoleBadge from './RoleBadge';
 
@@ -46,6 +47,9 @@ function OwnerRootTree({ root, selectedId, onSelect }) {
 
 // One portfolio they do not hold, by name only, and their roles in it.
 function PortfolioRoles({ group, selectedRoleId, onSelectRole }) {
+  // The roles a review campaign asks them to review carry a mark.
+  const { requests } = useReviewRequests();
+  const waiting = new Set(requests.map(q => String(q.roleId).toLowerCase()));
   return (
     <div className="mb-3">
       <AncestorTrail names={[group.name]} />
@@ -56,7 +60,12 @@ function PortfolioRoles({ group, selectedRoleId, onSelectRole }) {
               className={`w-full text-left flex items-center justify-between gap-2 rounded px-2 py-1 text-sm ${r.id === selectedRoleId
                 ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100'
                 : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
-              <span className="truncate">{r.displayName || r.id}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate">{r.displayName || r.id}</span>
+                {waiting.has(String(r.id).toLowerCase()) && (
+                  <span data-testid="review-waiting" title="A review is waiting for you" className="shrink-0 rounded-full border border-amber-400 bg-amber-100 px-1.5 text-[11px] font-medium text-amber-900 dark:border-amber-600 dark:bg-amber-900/40 dark:text-amber-100">Review</span>
+                )}
+              </span>
               <RoleBadge role={r.role} />
             </button>
           </li>

@@ -7,7 +7,8 @@ import { changeText } from './accessModel';
 import RoleSnapshot from './RoleSnapshot';
 import ReviewWizard from './review/ReviewWizard';
 import ReviewRecord from './review/ReviewRecord';
-import { findingsCount, outcomeText } from './review/reviewSteps';
+import { findingsCount, outcomeText, requestLine } from './review/reviewSteps';
+import { useReviewRequests } from '@ui/contexts/ReviewRequestsContext';
 
 // ─── Composition review of a business role ───────────────────────────────
 // Somebody walks through the role step by step — who answers for it, its
@@ -16,6 +17,8 @@ import { findingsCount, outcomeText } from './review/reviewSteps';
 // signed it, when, what they said per step and a snapshot of the role at that
 // moment (RoleSnapshot), so the page shows what was reviewed, what was found and
 // what changed since the last review. A review changes nothing on the role.
+// When a review campaign asks the signed-in person (`request`), the page says so
+// and the wizard asks the steps the campaign asks; signing answers the request.
 // Data: /api/access-package/:id/composition-reviews (lib/businessRoleCompositionReview.js).
 
 const CARD = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800';
@@ -55,6 +58,7 @@ function ReviewStatus({ summary, canWrite, onStart }) {
           </button>
         )}
       </div>
+      {summary.request && canWrite && <p data-testid="review-request" className="mt-2 text-sm font-medium text-amber-900 dark:text-amber-200">{requestLine(summary.request)}</p>}
       {changed && <p role="alert" className="mt-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">{changed}</p>}
     </section>
   );
@@ -92,13 +96,15 @@ function History({ reviews }) {
 
 const EMPTY = { reviews: [], current: null, latestReview: null, steps: [], verdicts: [] };
 
-export default function BusinessRoleCompositionReview({ roleId, data, onOpenDetail, answersForRole = false }) {
+export default function BusinessRoleCompositionReview({ roleId, data, onOpenDetail, answersForRole = false, startReview = false }) {
   const { authFetch } = useAuth();
   // Read-only in a shared view, unless it is the owner's own page for a role they answer for.
   const readOnly = useIsSharedView() && !answersForRole;
   const url = `/api/access-package/${encodeURIComponent(roleId)}/composition-reviews`;
   const { data: loaded, loading, error, reload } = useFetch(url, { authFetch });
-  const [reviewing, setReviewing] = useState(false);
+  // `startReview`: the page was asked to open straight on the wizard.
+  const [reviewing, setReviewing] = useState(startReview);
+  const { reload: reloadRequests } = useReviewRequests();
 
   async function save(body) {
     try {
@@ -106,6 +112,7 @@ export default function BusinessRoleCompositionReview({ roleId, data, onOpenDeta
       if (!r.ok) return (await r.json().catch(() => ({}))).error || `Could not save the review (HTTP ${r.status})`;
       setReviewing(false);
       reload();
+      reloadRequests();
       return null;
     } catch (e) {
       return e.message || 'Could not save the review';
@@ -115,7 +122,8 @@ export default function BusinessRoleCompositionReview({ roleId, data, onOpenDeta
   if (loading && !loaded) return <p className={MUTED}>Loading the reviews…</p>;
   if (error) return <p role="alert" className="text-sm text-red-700 dark:text-red-400">The reviews could not be loaded: {error.message}</p>;
   const summary = loaded || EMPTY;
-  const steps = summary.steps || [];
+  // A campaign's request narrows the review to the steps it asks.
+  const steps = summary.request?.steps?.length ? summary.request.steps : (summary.steps || []);
   // The API says who may review: the certification permission, or answering for
   // the role while that relative permission is on. Never in a shared view.
   const canWrite = summary.canReview === true && !readOnly && steps.length > 0;

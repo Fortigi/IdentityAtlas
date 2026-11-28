@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `4.0.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `4.1.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -553,7 +553,7 @@ Edge: `principalId` or `identityId` → `resourceId`.
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `principalType` | `ia:principalType` | text |  | The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type. |
 | `propagationScope` | `ia:propagationScope` | text | `self`, `descendants`, `selfAndDescendants` | Where along a containment hierarchy the assignment applies. |
-| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: `resourceExternalId`. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: `resourceExternalId`. |
 | `resourceType` | `ia:resourceType` | text |  | The kind of resource (open vocabulary). On Resources it selects the subclass; on ResourceAssignments it is a denormalised copy used to partition reconciles. |
 | `state` | `ia:state` | text |  | The source system's state word for the assignment (for example Delivered). |
 | `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
@@ -604,7 +604,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 |---|---|---|---|---|
 | `proposal` | `ia:proposal` | jsonb |  | Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId \| identityId, displayName } \| null, responsible: [{ principalId \| identityId, displayName }] }. A proposal: the review changes nobody. |
 | `remark` | `ia:remark` | text |  | The change the reviewer proposes (needsChange) or their question (notUnderstood). Empty when the step is good. |
-| `reviewId` | `ia:reviewId` | uuid | → BusinessRoleCompositionReviews | The review this verdict is part of. |
+| `reviewId` | `ia:reviewId` | uuid | → BusinessRoleCompositionReviews | The review this verdict is part of. On a campaign request: the review that answered it, empty while it waits. |
 | `step` | `ia:step` | text | `ownership`, `lifecycle`, `contents` | Which part of the role was judged. |
 | `verdict` | `ia:verdict` | text | `good`, `needsChange`, `notUnderstood` | What the reviewer said about it. |
 
@@ -617,7 +617,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
 | `notes` | `ia:notes` | text |  | The reviewer's closing comments on the whole role. May be empty. |
-| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: `resourceExternalId`. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: `resourceExternalId`. |
 | `reviewedAt` | `ia:reviewedAt` | timestamp with time zone |  | When it was saved: the moment the snapshot shows. |
 | `reviewedBy` | `ia:reviewedBy` | text |  | The signed-in user who saved it (their sign-in name), never a value the request supplied; unknown while sign-in is off. |
 | `reviewedByName` | `ia:reviewedByName` | text |  | That user's display name when they saved it. |
@@ -694,7 +694,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 |---|---|---|---|---|
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
-| `createdBy` | `ia:createdBy` | text |  | Who uploaded it. |
+| `createdBy` | `ia:createdBy` | text |  | Who uploaded it. On a review campaign: who set it up. |
 | `extractionMessage` | `ia:extractionMessage` | text |  | Why a run failed, or what a finished run left out. |
 | `extractionStartedAt` | `ia:extractionStartedAt` | timestamp with time zone |  | When the last run started. |
 | `extractionStatus` | `ia:extractionStatus` | text | `pending`, `running`, `done`, `failed`, `notConfigured` | How far reading it with the local model got. |
@@ -721,6 +721,62 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `decidedBy` | `ia:decidedBy` | text |  | Who decided it. |
 | `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
 | `overrides` | `ia:overrides` | text |  | The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand). |
+
+### ReviewCampaignRequests
+
+`ia:ReviewCampaignRequest` · Knowledge table · One business role (resourceId) to review in one round (roundId), at most once per round. Asked of whoever is Accountable for the role at the moment of looking; a role with nobody Accountable has nobody to ask. Answered by the composition review of that person (reviewId) that judged every step the campaign asks; while reviewId is empty it waits, or is late once its round is due. Deleted with the role.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: `resourceExternalId`. |
+| `reviewId` | `ia:reviewId` | uuid | → BusinessRoleCompositionReviews | The review this verdict is part of. On a campaign request: the review that answered it, empty while it waits. |
+| `roundId` | `ia:roundId` | uuid | → ReviewCampaignRounds | The round that asked. |
+
+### ReviewCampaignRounds
+
+`ia:ReviewCampaignRound` · Knowledge table · One time a review campaign (campaignId) asked: its number, when it started (startsAt) and when it is due (dueAt, the end of its last day). Made the first time somebody looks on or after its first day; rounds nobody looked at are skipped. Only the newest round of a campaign is open.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `campaignId` | `ia:campaignId` | uuid | → ReviewCampaigns | The campaign this belongs to. |
+| `dueAt` | `ia:dueAt` | timestamp with time zone |  | When the round is due: the end of its last day. |
+| `number` | `ia:number` | integer |  | Which round of its campaign this is, from 1. A campaign that asks once has only round 1. |
+| `startsAt` | `ia:startsAt` | timestamp with time zone |  | The first day of the round. |
+
+### ReviewCampaignScopes
+
+`ia:ReviewCampaignScope` · Knowledge table · One thing a review campaign (campaignId) is about: a business role by itself (resourceId), or every business role in a role portfolio (contextId, a Catalog context) — exactly one of the two. A portfolio is read again when each round starts, so a role added to it joins the next round. Deleted with the role or the portfolio.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `campaignId` | `ia:campaignId` | uuid | → ReviewCampaigns | The campaign this belongs to. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about. Ingest alias: `resourceExternalId`. |
+
+### ReviewCampaigns
+
+`ia:ReviewCampaign` · Knowledge table · A standing request to review business roles: which steps of a composition review (steps), asked of whom (askedRoles: today only the Accountable), from which day (startsOn), once or again every intervalMonths months, with dueDays days per round. Its scope is its ia:ReviewCampaignScope rows. Ended campaigns (endedAt) ask nobody any more. A campaign grants and removes nothing.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `askedRoles` | `ia:askedRoles` | jsonb |  | Whose review is asked, a JSON array of owner roles. Today always ["Accountable"]. |
+| `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
+| `createdBy` | `ia:createdBy` | text |  | Who uploaded it. On a review campaign: who set it up. |
+| `dueDays` | `ia:dueDays` | integer |  | How many days a round has, 1 to 365. |
+| `endedAt` | `ia:endedAt` | timestamp with time zone |  | When the campaign was stopped. Empty while it runs. |
+| `intervalMonths` | `ia:intervalMonths` | integer |  | After how many months it asks again: 1, 3, 6 or 12. Empty: it asks once. |
+| `name` | `ia:name` | text |  | What the campaign is called. |
+| `reviewKind` | `ia:reviewKind` | text | `BusinessRoleComposition` | What the campaign reviews. |
+| `startsOn` | `ia:startsOn` | date |  | The first day of the first round. |
+| `steps` | `ia:steps` | jsonb |  | The steps of the review the campaign asks, a JSON array of ia:ReviewStep values, at least one. |
 
 ## Value lists
 
@@ -914,6 +970,14 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `self` | `ia:PropagationScope_self` | Only at the assigned resource. |
 | `descendants` | `ia:PropagationScope_descendants` | Only below the assigned resource. |
 | `selfAndDescendants` | `ia:PropagationScope_selfAndDescendants` | At the assigned resource and everything below it (the default). |
+
+### Review kind
+
+`ia:ReviewKind` — What a review campaign reviews. Used by `ReviewCampaigns.reviewKind`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `BusinessRoleComposition` | `ia:ReviewKind_BusinessRoleComposition` | The composition review of a business role: who answers for it, its lifecycle and what it contains. |
 
 ### Review step
 

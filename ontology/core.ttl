@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "4.0.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/4.0.0> ;
+    owl:versionInfo "4.1.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/4.1.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -1052,7 +1052,7 @@ ia:complianceState a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "complianceState" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source system's compliance verdict for the assignment." .
 ia:contextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:MemberOverride ia:ChangeRequest ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:MemberOverride ia:ChangeRequest ia:ReviewCampaignScope ) ] ;
     rdfs:range ia:Context ;
     ia:ingestAlias "contextExternalId" ;
     rdfs:label "contextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1085,7 +1085,7 @@ ia:country a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "country" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The person's country." .
 ia:createdAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Context ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Context ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:ReviewCampaign ) ] ;
     rdfs:range xsd:dateTime ;
     rdfs:label "createdAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "When the context row was created." .
@@ -1409,11 +1409,11 @@ ia:resourceCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
     rdfs:label "resourceCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Stored count of resources in this context." .
 ia:resourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:CompositionReview ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:CompositionReview ia:ReviewCampaignScope ia:ReviewCampaignRequest ) ] ;
     rdfs:range ia:Resource ;
     ia:ingestAlias "resourceExternalId" ;
     rdfs:label "resourceId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The resource that is held. On a composition review: the business role that was reviewed." .
+    rdfs:comment "The resource that is held. On a composition review: the business role that was reviewed. On a review campaign scope or request: the business role the campaign is about." .
 ia:resourceType a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Resource ia:ResourceAssignment ) ] ;
     rdfs:range xsd:string ;
@@ -1603,10 +1603,10 @@ ia:model a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "model" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The model that read it." .
 ia:createdBy a owl:DatatypeProperty ; ia:sqlType "text" ;
-    rdfs:domain ia:Interview ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Interview ia:ReviewCampaign ) ] ;
     rdfs:range xsd:string ;
     rdfs:label "createdBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Who uploaded it." .
+    rdfs:comment "Who uploaded it. On a review campaign: who set it up." .
 ia:claimKind a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:Claim ;
     rdfs:range xsd:string ;
@@ -1909,10 +1909,10 @@ ia:ReviewVerdict_notUnderstood a owl:NamedIndividual, ia:ReviewVerdict ; ia:type
     rdfs:comment "The reviewer cannot judge what they read; the remark may hold their question." .
 
 ia:reviewId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain ia:CompositionReviewStep ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:CompositionReviewStep ia:ReviewCampaignRequest ) ] ;
     rdfs:range ia:CompositionReview ;
     rdfs:label "reviewId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The review this verdict is part of." .
+    rdfs:comment "The review this verdict is part of. On a campaign request: the review that answered it, empty while it waits." .
 ia:step a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:CompositionReviewStep ;
     rdfs:range xsd:string ;
@@ -1935,3 +1935,104 @@ ia:proposal a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
     rdfs:range rdf:JSON ;
     rdfs:label "proposal" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Only on the ownership step with the verdict needsChange: the owners as the reviewer says they should be, each picked from the directory — { accountable: { principalId | identityId, displayName } | null, responsible: [{ principalId | identityId, displayName }] }. A proposal: the review changes nobody." .
+
+# ─── Review campaigns ────────────────────────────────────────────────────────
+# A campaign asks the people who answer for a set of business roles to review
+# them: which steps, which roles, once or on a schedule. Each time it asks is a
+# round; each role in a round is a request, answered by a composition review.
+# Who is asked is never stored: it is whoever is Accountable for the role when
+# you look. Experimental, with the composition review.
+
+ia:ReviewCampaign a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Review campaign" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A standing request to review business roles: which steps of a composition review (steps), asked of whom (askedRoles: today only the Accountable), from which day (startsOn), once or again every intervalMonths months, with dueDays days per round. Its scope is its ia:ReviewCampaignScope rows. Ended campaigns (endedAt) ask nobody any more. A campaign grants and removes nothing." ;
+    ia:table "ReviewCampaigns" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ReviewCampaignScope a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Review campaign scope" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One thing a review campaign (campaignId) is about: a business role by itself (resourceId), or every business role in a role portfolio (contextId, a Catalog context) — exactly one of the two. A portfolio is read again when each round starts, so a role added to it joins the next round. Deleted with the role or the portfolio." ;
+    ia:table "ReviewCampaignScopes" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ReviewCampaignRound a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Review campaign round" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One time a review campaign (campaignId) asked: its number, when it started (startsAt) and when it is due (dueAt, the end of its last day). Made the first time somebody looks on or after its first day; rounds nobody looked at are skipped. Only the newest round of a campaign is open." ;
+    ia:table "ReviewCampaignRounds" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ReviewCampaignRequest a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Review campaign request" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One business role (resourceId) to review in one round (roundId), at most once per round. Asked of whoever is Accountable for the role at the moment of looking; a role with nobody Accountable has nobody to ask. Answered by the composition review of that person (reviewId) that judged every step the campaign asks; while reviewId is empty it waits, or is late once its round is due. Deleted with the role." ;
+    ia:table "ReviewCampaignRequests" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:ReviewKind a owl:Class ;
+    rdfs:label "Review kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What a review campaign reviews." .
+ia:ReviewKind_BusinessRoleComposition a owl:NamedIndividual, ia:ReviewKind ; ia:typeValue "BusinessRoleComposition" ;
+    rdfs:label "BusinessRoleComposition" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The composition review of a business role: who answers for it, its lifecycle and what it contains." .
+
+ia:name a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range xsd:string ;
+    rdfs:label "name" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the campaign is called." .
+ia:reviewKind a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ReviewKind ;
+    rdfs:label "reviewKind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the campaign reviews." .
+ia:steps a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "steps" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The steps of the review the campaign asks, a JSON array of ia:ReviewStep values, at least one." .
+ia:askedRoles a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "askedRoles" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whose review is asked, a JSON array of owner roles. Today always [\"Accountable\"]." .
+ia:startsOn a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range xsd:date ;
+    rdfs:label "startsOn" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The first day of the first round." .
+ia:intervalMonths a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range xsd:integer ;
+    rdfs:label "intervalMonths" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "After how many months it asks again: 1, 3, 6 or 12. Empty: it asks once." .
+ia:dueDays a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range xsd:integer ;
+    rdfs:label "dueDays" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How many days a round has, 1 to 365." .
+ia:endedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ReviewCampaign ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "endedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the campaign was stopped. Empty while it runs." .
+ia:campaignId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ReviewCampaignScope ia:ReviewCampaignRound ) ] ;
+    rdfs:range ia:ReviewCampaign ;
+    rdfs:label "campaignId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The campaign this belongs to." .
+ia:number a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:ReviewCampaignRound ;
+    rdfs:range xsd:integer ;
+    rdfs:label "number" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Which round of its campaign this is, from 1. A campaign that asks once has only round 1." .
+ia:startsAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ReviewCampaignRound ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "startsAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The first day of the round." .
+ia:dueAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:ReviewCampaignRound ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "dueAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the round is due: the end of its last day." .
+ia:roundId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ReviewCampaignRequest ;
+    rdfs:range ia:ReviewCampaignRound ;
+    rdfs:label "roundId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The round that asked." .

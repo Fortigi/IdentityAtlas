@@ -160,3 +160,9 @@ describe('leaveTarget', () => {
     expect(leaveTarget('crawlers', [])).toBe('crawlers');
   });
 });
+
+describe('review campaigns', () => {
+  it('are not an Admin sub-tab: they have a top-level Reviews tab', () => {
+    expect(ADMIN_TABS.map(t => t.key)).not.toContain('review-campaigns');
+  });
+});

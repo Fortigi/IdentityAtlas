@@ -11,6 +11,7 @@ import DeletedBadge from './DeletedBadge';
 import BusinessRoleOverview from './businessRoles/BusinessRoleOverview';
 import BusinessRoleLifecycle from './businessRoles/BusinessRoleLifecycle';
 import BusinessRoleRequestsAndReviews from './businessRoles/BusinessRoleRequestsAndReviews';
+import ReviewRequestNotice from './businessRoles/review/ReviewRequestNotice';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import WayChips from './businessRoles/WayChips';
 import { showsRequestsAndReviews } from './businessRoles/accessModel';
@@ -87,6 +88,8 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   // A context owner who answers for this role reviews it from their own page.
   const answersForRole = useAnswersForRole(accessPackageId);
   const [riskData, setRiskData] = useState(null);
+  // Set by the Overview's "a review is waiting" notice: Requests & reviews then opens on the wizard.
+  const [startReview, setStartReview] = useState(false);
   // Experimental (flag compositionReview). Not part of a shared view, except for
   // a context owner who answers for the role.
   const showComposition = compositionReview && (!sharedView || answersForRole);
@@ -117,14 +120,17 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
 
   const renderCustomTab = useCallback((key, data, openTab) => {
     if (key === 'overview') {
-      return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
+      const notice = showComposition
+        ? <ReviewRequestNotice roleId={accessPackageId} onStart={() => { setStartReview(true); openTab('requests'); }} />
+        : null;
+      return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} notice={notice} />;
     }
     if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
     // Attributes, Relationships, Timeline, Diff and Risk are EntityDetailPage's own.
     if (key !== 'requests') return null;
     return <BusinessRoleRequestsAndReviews roleId={accessPackageId} data={data} authFetch={authFetch} showComposition={showComposition}
-      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenDetail={onOpenDetail} />;
-  }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition]);
+      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenDetail={onOpenDetail} startReview={startReview} />;
+  }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition, startReview]);
 
   return (
     <EntityDetailPage

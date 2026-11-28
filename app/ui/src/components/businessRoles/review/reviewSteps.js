@@ -1,3 +1,5 @@
+import { formatUtcDay } from '@ui/utils/formatters';
+
 // ─── A composition review, step by step: the words and the rules ─────────
 // Pure helpers for the review wizard and the record of a saved review. The
 // steps and verdicts are the API's (lib/compositionReviewSteps.js); which steps
@@ -156,4 +158,12 @@ export function splitHolders(rows, now = Date.now(), days = HOLDERS_LOST_DAYS) {
     .filter(r => r.deleted && r.deletedAt && Date.parse(r.deletedAt) >= since)
     .sort((a, b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt));
   return { current, lost };
+}
+
+/** What a campaign asks of the signed-in person about this role, in one sentence. */
+export function requestLine(request) {
+  const due = formatUtcDay(request.dueAt);
+  return request.overdue
+    ? `The campaign "${request.campaignName}" asked you to review this role by ${due}. That date has passed.`
+    : `The campaign "${request.campaignName}" asks you to review this role by ${due}.`;
 }
